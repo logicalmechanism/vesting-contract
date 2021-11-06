@@ -1,7 +1,12 @@
+# Basic Start Up
+
+Starting the testnet node.
 ```bash
 # cd cardano-node
 ./testnet-node-local/bin/cardano-node-testnet
 ```
+
+Getting the node socket on path.
 
 ```bash
 # cd bash_scripts
@@ -9,6 +14,7 @@ CARDANO_NODE_SOCKET_PATH=../cardano-node/state-node-testnet/node.socket
 ../cardano-node/cardano-cli-testnet/bin/cardano-cli query tip --testnet-magic 1097911063
 ```
 
+Compile the Haskell code.
 
 ```bash
 cabal clean
@@ -18,7 +24,7 @@ cp vesting_contract.plutus ../../compiled_plutus_scripts/vesting_contract_rev0.p
 echo "done"
 ```
 
-
+<!-- Code for starting the repo
 ```bash
 echo "# testing" >> README.md
 git init
@@ -27,4 +33,4 @@ git commit -m "first commit"
 git branch -M main
 git remote add origin https://github.com/logicalmechanism/vesting-contract.git
 git push -u origin main
-```
+``` -->
