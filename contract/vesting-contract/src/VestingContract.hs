@@ -44,6 +44,8 @@ import qualified Plutus.V1.Ledger.Value    as Value
   Author   : The Ancient Kraken
   Copyright: 2021
   Version  : Rev 0
+
+  This is a vesting contract that attempts to solve the permanent banning problem.
 -}
 
 -------------------------------------------------------------------------------
@@ -100,9 +102,9 @@ validator :: Plutus.Validator
 validator = Scripts.validatorScript (typedValidator vc)
   where 
     vc = VestingContractParams
-      { vcMajorityParam = 3
-      , vcPolicyID      = "5243f6530c3507a3ed1217848475abb5ec0ec122e00c82e878ff2292"
-      , vcTokenName     = "TokenC"
+      { vcMajorityParam = 3 -- | This may need to be inside the datum
+      , vcPolicyID      = "5243f6530c3507a3ed1217848475abb5ec0ec122e00c82e878ff2292"  -- | sample pid
+      , vcTokenName     = "TokenC"  -- | sample tn
       }
 
 
@@ -152,7 +154,7 @@ mkValidator vc datum redeemer context
       -- | Check Some Condition Functions Here
       -------------------------------------------------------------------------
 
-      -- put functions right here
+      -- put functions right here for the retrieve and remove calls.
 
       -------------------------------------------------------------------------
       -- | Script Info and TxOutputs
@@ -185,8 +187,9 @@ mkValidator vc datum redeemer context
       vestingValue :: Value
       vestingValue = Ada.lovelaceValueOf vestingAmount
 
+      -- | The integer amount of the value inside the contract.
       valueAmount :: Integer
-      valueAmount = Value.valueOf vestingValue (vcPolicyID vc) (vcTokenName vc)
+      valueAmount = Value.valueOf tokenValue (vcPolicyID vc) (vcTokenName vc)
 
       vestingPKH :: PubKeyHash
       vestingPKH = cdtVestingUserPKH datum
@@ -211,7 +214,7 @@ mkValidator vc datum redeemer context
       checkTxSigner :: PubKeyHash -> Bool
       checkTxSigner signee = Contexts.txSignedBy info signee  -- Not Working as of 1.30.1
 
-      -- -- | Search each TxOut for the correct address and value.
+      -- | Search each TxOut for the correct address and value.
       checkTxOutForValueAtAddress :: [TxOut] -> Address -> Value -> Bool
       checkTxOutForValueAtAddress [] _addr _val = False
       checkTxOutForValueAtAddress (x:xs) addr val
@@ -223,7 +226,7 @@ mkValidator vc datum redeemer context
       checkTxOutForValue [] _val = False
       checkTxOutForValue (x:xs) val
         | (txOutValue x) P.== val = True
-        | otherwise = checkTxOutForValue xs val
+        | otherwise               = checkTxOutForValue xs val
 
       
 -------------------------------------------------------------------------------
