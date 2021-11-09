@@ -28,6 +28,8 @@ import qualified Data.ByteString.Short     as SBS
 import           Prelude                   hiding (($))
 
 import           Ledger                    hiding (singleton)
+import qualified Ledger.Interval
+import qualified Ledger.TimeSlot
 import qualified Ledger.Typed.Scripts      as Scripts
 
 import           Cardano.Api.Shelley       (PlutusScript (..), PlutusScriptV1)
@@ -39,6 +41,7 @@ import qualified Plutus.V1.Ledger.Ada      as Ada
 import qualified Plutus.V1.Ledger.Contexts as Contexts
 import qualified Plutus.V1.Ledger.Scripts  as Plutus
 import qualified Plutus.V1.Ledger.Value    as Value
+import           Plutus.V1.Ledger.Time     as Time
 
 {- |
   Author   : The Ancient Kraken
@@ -137,9 +140,11 @@ mkValidator vc datum redeemer context
       -- | Put all the retrieve functions together here.
       retrieve :: Bool
       retrieve = do
-        { let a = True
-        ; let b = True
-        ; P.all (P.==(True :: Bool)) [a,b]
+        { let a = checkTxSigner vestingPKH
+        ; let b = checkTxOutForValueAtAddress currentTxOutputs vestingAddr vestingValue
+        ; let c = checkTxOutForValue scriptTxOutputs returnValue
+        ; let d = (Ledger.TimeSlot.slotToBeginPOSIXTime def (Slot $ cdtVestDeadline datum)) `before` Contexts.txInfoValidRange info
+        ; P.all (P.==(True :: Bool)) [a,b,c,d]
         }
       
       -- | Put all the retrieve functions together here.
@@ -149,12 +154,6 @@ mkValidator vc datum redeemer context
         ; let b = True
         ; P.all (P.==(True :: Bool)) [a,b]
         }
-
-      -------------------------------------------------------------------------
-      -- | Check Some Condition Functions Here
-      -------------------------------------------------------------------------
-
-      -- put functions right here for the retrieve and remove calls.
 
       -------------------------------------------------------------------------
       -- | Script Info and TxOutputs
@@ -175,7 +174,17 @@ mkValidator vc datum redeemer context
       -------------------------------------------------------------------------
       -- | Different Types of Vesting Data Here
       -------------------------------------------------------------------------
-      
+
+      vestingValue ::Value
+      vestingValue = if valueAmount P.> vestingAmount
+        then Value.singleton (vcPolicyID vc) (vcTokenName vc) vestingAmount
+        else Value.singleton (vcPolicyID vc) (vcTokenName vc) valueAmount
+
+      returnValue ::Value
+      returnValue = if valueAmount P.> vestingAmount
+        then Value.singleton (vcPolicyID vc) (vcTokenName vc) (valueAmount P.- vestingAmount)
+        else Value.singleton (vcPolicyID vc) (vcTokenName vc) (0 :: Integer)
+
       tokenValue :: Value
       tokenValue = case Contexts.findOwnInput context of
         Nothing     -> traceError "No Input to Validate."
@@ -184,10 +193,7 @@ mkValidator vc datum redeemer context
       vestingAmount :: Integer
       vestingAmount = cdtVestAmount datum
 
-      vestingValue :: Value
-      vestingValue = Ada.lovelaceValueOf vestingAmount
-
-      -- | The integer amount of the value inside the contract.
+      -- | The integer amount of the value inside the script UTxO.
       valueAmount :: Integer
       valueAmount = Value.valueOf tokenValue (vcPolicyID vc) (vcTokenName vc)
 
@@ -210,6 +216,17 @@ mkValidator vc datum redeemer context
       -- | Helper Functions Here
       -------------------------------------------------------------------------
 
+      -- | This may be incorrect. Check plutus repo...
+      beginningOfTime :: Integer
+      beginningOfTime = 1596059091000
+      
+      -- | This is the default time. Check Plutus repo...
+      def :: Ledger.TimeSlot.SlotConfig
+      def = Ledger.TimeSlot.SlotConfig 
+        { Ledger.TimeSlot.scSlotLength = 1000
+        , Ledger.TimeSlot.scSlotZeroTime = Time.POSIXTime beginningOfTime
+        }
+      
       -- | Check if a signee has signed the pending transaction.
       checkTxSigner :: PubKeyHash -> Bool
       checkTxSigner signee = Contexts.txSignedBy info signee  -- Not Working as of 1.30.1
