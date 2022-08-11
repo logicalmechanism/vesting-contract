@@ -26,7 +26,6 @@ common project-config
                         -Wincomplete-record-updates
                         -Wpartial-fields
                         -Wredundant-constraints
-                        -Wincomplete-uni-patterns
                         -Wmissing-export-lists
                         -Wpartial-fields
                         -Wmissing-deriving-strategies
@@ -46,14 +45,22 @@ library
   hs-source-dirs:       src
 
   exposed-modules:      VestingContract
+                        DataTypes
+                        HelperFuncs
+                        CheckFuncs
 
   build-depends:        bytestring
                       , cardano-api
+                      , plutus-contract
+                      , plutus-ledger
                       , plutus-ledger-api
                       , plutus-tx
                       , plutus-tx-plugin
-                      , plutus-script-utils
                       , serialise
+                      , text
+                      , containers
+                      , aeson
+                      , openapi3
 
   ghc-options: -fobject-code -fno-ignore-interface-pragmas -fno-omit-interface-pragmas
 
@@ -61,12 +68,11 @@ executable vesting-contract
   import:               base, project-config
   hs-source-dirs:       app
   main-is:              vesting-contract.hs
-  
-  ghc-options:          -threaded 
-                        -rtsopts 
-                        "-with-rtsopts=-T"
-                        -O2
+  ghc-options:          -threaded -rtsopts "-with-rtsopts=-T"
 
   build-depends:        cardano-api
+                      , cardano-ledger-alonzo
                       , vesting-contract
+                      , plutus-ledger-api
+                      , bytestring
 
