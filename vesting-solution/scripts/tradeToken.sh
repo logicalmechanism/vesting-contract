@@ -6,8 +6,8 @@ export CARDANO_NODE_SOCKET_PATH=$(cat path_to_socket.sh)
 cli=$(cat path_to_cli.sh)
 
 # Addresses
-vestor_address=$(cat wallets/vestor-wallet/payment.addr)
-issuer_address=$(cat wallets/issuer-wallet/payment.addr)
+vestor_address=$(cat wallets/buyer-wallet/payment.addr)
+issuer_address=$(cat wallets/seller-wallet/payment.addr)
 
 # Define Asset to be printed here
 policy_id="48664e8d76f2b15606677bd117a3eac9929c378ac547ed295518dfd5"

@@ -1,6 +1,6 @@
 k = pow(10,6)
-a = 1
-b = 2
+a = 2
+b = 1
 
 for i in range(1,k):
     val = a/(i/k) - b

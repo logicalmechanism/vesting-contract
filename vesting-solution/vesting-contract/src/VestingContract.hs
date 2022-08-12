@@ -94,8 +94,8 @@ mkValidator datum redeemer context =
     Close -> do
       { let validatingTkn = Value.valueOf validatingValue lockPid lockTkn
       ; let retrievingTkn = Value.valueOf retrievingValue lockPid lockTkn
-      ; let a = traceIfFalse "Single Script Only"           $ isNInputs txInputs 1 && isNOutputs contTxOutputs 0            -- single input no outputs
-      ; let b = traceIfFalse "Funds Not Being Retrieved"    $ isAddrGettingPaid txOutputs userAddr validatingValue          -- send the leftover
+      ; let a = traceIfFalse "Single Script Only"           $ isNInputs txInputs 1 && isNOutputs contTxOutputs 0             -- single input no outputs
+      ; let b = traceIfFalse "Funds Not Being Retrieved"    $ isAddrGettingPaid txOutputs userAddr validatingValue           -- send the leftover
       ; let c = traceIfFalse "Funds Are Left To Vest"       $ validatingTkn <= retrievingTkn || Value.isZero retrievingValue -- not enough or leftover
       ;         traceIfFalse "Error: closeVestment Failure" $ all (==(True :: Bool)) [a,b,c]
       }
