@@ -1,6 +1,6 @@
-import           Prelude
-import           Cardano.Api
-import           VestingContract ( vestingContractScript )
+import Prelude
+import Cardano.Api
+import VestingContract ( vestingContractScript )
 
 main :: IO ()
 main = do
