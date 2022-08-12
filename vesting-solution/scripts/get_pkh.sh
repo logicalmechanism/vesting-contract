@@ -8,4 +8,8 @@ if [ $# -eq 0 ]
     exit
 fi
 
-./bech32 <<< ${1} | cut -c3-
+myString=$(./bech32 <<< ${1} | cut -c3-)
+
+IFS='' read -r -a array <<< "$myString"
+
+echo ${myString:0:56}

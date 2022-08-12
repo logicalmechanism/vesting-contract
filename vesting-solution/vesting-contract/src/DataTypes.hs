@@ -27,52 +27,44 @@
 {-# OPTIONS_GHC -fexpose-all-unfoldings       #-}
 module DataTypes
   ( CustomDatumType
-  , cdtRewardParams
-  , cdtDeadlineParams
   , cdtVestingStage
-  , cdtVestingUserPKH
-  , cdtTreasuryPKH
-  , cdtVotingGroupPKHs
-  , cdtVotingWeights
+  , cdtVestingUserPkh
+  , cdtVestingUserSc
+  , cdtStartingAmount
+  , cdtDeltaAmount
+  , cdtLockPeriod
+  , cdtStartDay
   ) where
-import           Ledger
 import qualified PlutusTx
 import           PlutusTx.Prelude
-import           Data.Aeson          (ToJSON, FromJSON)
-import           GHC.Generics        (Generic)
-import           Data.OpenApi.Schema (ToSchema)
-import           Prelude             (Show)
+import qualified Plutus.V2.Ledger.Api as PlutusV2
 -------------------------------------------------------------------------------
 -- | Create the datum parameters data object.
 -------------------------------------------------------------------------------
 data CustomDatumType = CustomDatumType
-  { cdtVestingStage    :: !Integer
+  { cdtVestingStage   :: Integer
   -- ^ The stage determines the deadline and reward.
-  , cdtVestingUserPKH  :: !PubKeyHash
+  , cdtVestingUserPkh :: PlutusV2.PubKeyHash
   -- ^ The public key hash of the receiver.
-  , cdtVotingGroupPKHs :: ![PubKeyHash]
-  -- ^ A list public key hashes of everyone who is voting with the contract.
-  , cdtVotingWeights   :: ![Integer]
-  -- ^ A list voting weights of everyone who is vesting with the contract.
-  , cdtTreasuryPKH     :: !PubKeyHash
-  -- ^ The public key hash of the treasury wallet.
-  , cdtDeadlineParams  :: ![Integer]
-  -- ^ The deadline function parameters [deltaT, t0]
-  , cdtRewardParams    :: ![Integer]
-  -- ^ The reward   function parameters [deltaV, v0]
+  , cdtVestingUserSc  :: PlutusV2.PubKeyHash
+  -- ^ The stake hash of the receiver.
+  , cdtStartingAmount :: Integer
+  -- ^ The starting amount.
+  , cdtDeltaAmount :: Integer
+  -- ^ The delta amount to retrieve.
+  , cdtLockPeriod :: Integer
+  -- ^ The lock period in days between vestments.
+  , cdtStartDay :: Integer
+  -- ^ The starting day counted from epoch 312
   }
-    deriving stock    (Show, Generic)
-    deriving anyclass (FromJSON, ToJSON, ToSchema)
 PlutusTx.unstableMakeIsData ''CustomDatumType
-PlutusTx.makeLift ''CustomDatumType
 -- old is a; new is b
 instance Eq CustomDatumType where
   {-# INLINABLE (==) #-}
-  a == b = ( cdtVestingStage     a + 1  == cdtVestingStage         b)  &&
-           ( cdtVestingUserPKH       a  == cdtVestingUserPKH       b)  &&
-           ( cdtVotingGroupPKHs      a  == cdtVotingGroupPKHs      b)  &&
-           ( cdtVotingWeights        a  == cdtVotingWeights        b)  &&
-           ( cdtTreasuryPKH          a  == cdtTreasuryPKH          b)  &&
-           ( cdtRewardParams         a  == cdtRewardParams         b)  &&
-           ( head (cdtDeadlineParams a) == head (cdtDeadlineParams b)) &&
-           ( head (tail (cdtDeadlineParams a)) + head (cdtDeadlineParams a) == head (tail (cdtDeadlineParams b)))
+  a == b = ( cdtVestingStage   a + 1 == cdtVestingStage   b ) &&
+           ( cdtVestingUserPkh     a == cdtVestingUserPkh b ) &&
+           ( cdtVestingUserSc      a == cdtVestingUserSc  b ) &&
+           ( cdtStartingAmount     a == cdtStartingAmount b ) &&
+           ( cdtDeltaAmount        a == cdtDeltaAmount    b ) &&
+           ( cdtLockPeriod         a == cdtLockPeriod     b ) &&
+           ( (cdtStartDay a) + (cdtLockPeriod a) == cdtStartDay b )
