@@ -1,3 +1,3 @@
-# This project has moved.
+# This project is a port
 
-https://github.com/adosia/Contracts
+It is a applied variation of the vesting-solution from https://github.com/adosia/Contracts.
