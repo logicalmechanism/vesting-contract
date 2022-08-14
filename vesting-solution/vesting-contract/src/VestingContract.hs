@@ -83,10 +83,11 @@ mkValidator datum redeemer context =
       case getOutboundDatum contTxOutputs (validatingValue - retrievingValue) of
         Nothing            -> traceIfFalse "Retrieve:GetOutboundDatum Error" False
         Just outboundDatum -> do
-          { let a = traceIfFalse "Input / Output Error"      $ isNInputs txInputs 1 && isNOutputs contTxOutputs 1   -- single tx going in
+          { let retrievingTkn = Value.valueOf retrievingValue lockPid lockTkn
+          ; let a = traceIfFalse "Input / Output Error"      $ isNInputs txInputs 1 && isNOutputs contTxOutputs 1   -- single tx going in
           ; let b = traceIfFalse "Incorrect Tx Signer Error" $ ContextsV2.txSignedBy info vestingUser               -- wallet must sign it
           ; let c = traceIfFalse "Datum Equality Error"      $ datum == outboundDatum                               -- the datum changes correctly
-          ; let d = traceIfFalse "Vestment Not Paid Error"   $ isAddrGettingPaid txOutputs userAddr retrievingValue -- wallet must get the utxo
+          ; let d = traceIfFalse "Vestment Not Paid Error"   $ isAddrHolding txOutputs userAddr retrievingTkn lockPid lockTkn -- wallet must get the utxo
           ; let e = traceIfFalse "The Value Is Still Locked" $ isTxOutsideInterval endTime validityInterval         -- must be outside lock
           ; let f = traceIfFalse "Not Enough Reward Error"   $ not $ Value.isZero retrievingValue                   -- cant be non zero reward
           ;         traceIfFalse "Error: Retrieve Failure"   $ all (==(True :: Bool)) [a,b,c,d,e,f]
