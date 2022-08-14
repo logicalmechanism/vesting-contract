@@ -66,11 +66,9 @@ lockTkn = PlutusV2.TokenName {PlutusV2.unTokenName = createBuiltinByteString [11
 -- | Create the redeemer type.
 -------------------------------------------------------------------------------
 data CustomRedeemerType = Retrieve | 
-                          Close    |
-                          Debug -- remove in production
+                          Close
 PlutusTx.makeIsDataIndexed ''CustomRedeemerType [ ( 'Retrieve, 0 )
                                                 , ( 'Close,    1 )
-                                                , ( 'Debug,    2 ) -- remove in production
                                                 ]
 -------------------------------------------------------------------------------
 -- | mkValidator :: Datum -> Redeemer -> ScriptContext -> Bool
@@ -83,32 +81,35 @@ mkValidator datum redeemer context =
       case getOutboundDatum contTxOutputs (validatingValue - retrievingValue) of
         Nothing            -> traceIfFalse "Retrieve:GetOutboundDatum Error" False
         Just outboundDatum -> do
-          { let a = traceIfFalse "Input / Output Error"      $ isNInputs txInputs 1 && isNOutputs contTxOutputs 1   -- single tx going in
-          ; let b = traceIfFalse "Incorrect Tx Signer Error" $ ContextsV2.txSignedBy info vestingUser               -- wallet must sign it
-          ; let c = traceIfFalse "Datum Equality Error"      $ datum == outboundDatum                               -- the datum changes correctly
-          ; let d = traceIfFalse "Vestment Not Paid Error"   $ isAddrGettingPaid txOutputs userAddr retrievingValue -- wallet must get the utxo
-          ; let e = traceIfFalse "The Value Is Still Locked" $ isTxOutsideInterval endTime validityInterval         -- must be outside lock
-          ; let f = traceIfFalse "Not Enough Reward Error"   $ not $ Value.isZero retrievingValue                   -- cant be non zero reward
+          { let retrievingTkn = Value.valueOf retrievingValue lockPid lockTkn
+          ; let a = traceIfFalse "Input / Output Error"      $ isNInputs txInputs 1 && isNOutputs contTxOutputs 1             -- single tx going in
+          ; let b = traceIfFalse "Incorrect Tx Signer Error" $ ContextsV2.txSignedBy info vestingUser                         -- wallet must sign it
+          ; let c = traceIfFalse "Datum Equality Error"      $ datum == outboundDatum                                         -- the datum changes correctly
+          ; let d = traceIfFalse "Vestment Not Paid Error"   $ isAddrHolding txOutputs userAddr retrievingTkn lockPid lockTkn -- wallet must get the utxo
+          ; let e = traceIfFalse "The Value Is Still Locked" $ isTxOutsideInterval endTime validityInterval                   -- must be outside lock
+          ; let f = traceIfFalse "Not Enough Reward Error"   $ not $ Value.isZero retrievingValue                             -- cant be non zero reward
           ;         traceIfFalse "Error: Retrieve Failure"   $ all (==(True :: Bool)) [a,b,c,d,e,f]
           }
     Close -> do
       { let validatingTkn = Value.valueOf validatingValue lockPid lockTkn
       ; let retrievingTkn = Value.valueOf retrievingValue lockPid lockTkn
       ; let a = traceIfFalse "Single Script Only"           $ isNInputs txInputs 1 && isNOutputs contTxOutputs 0             -- single input no outputs
-      ; let b = traceIfFalse "Funds Not Being Retrieved"    $ isAddrGettingPaid txOutputs userAddr validatingValue           -- send the leftover
-      ; let c = traceIfFalse "Funds Are Left To Vest"       $ validatingTkn <= retrievingTkn || Value.isZero retrievingValue -- not enough or leftover
-      ;         traceIfFalse "Error: closeVestment Failure" $ all (==(True :: Bool)) [a,b,c]
+      ; let b = traceIfFalse "Incorrect Tx Signer Error"    $ ContextsV2.txSignedBy info vestingUser                         -- wallet must sign it
+      ; let c = traceIfFalse "Funds Not Being Retrieved"    $ isAddrGettingPaid txOutputs userAddr validatingValue           -- send the leftover
+      ; let d = traceIfFalse "Funds Are Left To Vest"       $ validatingTkn <= retrievingTkn || Value.isZero retrievingValue -- not enough or leftover
+      ; let e = traceIfFalse "The Value Is Still Locked"    $ isTxOutsideInterval endTime validityInterval                   -- must be outside lock
+      ;         traceIfFalse "Error: Close Failure"         $ all (==(True :: Bool)) [a,b,c,d,e]
       }
-    Debug -> True -- remove in production
   where
     info :: PlutusV2.TxInfo
     info = ContextsV2.scriptContextTxInfo  context
 
+    -- time stuff
     validityInterval :: PlutusV2.POSIXTimeRange
     validityInterval = ContextsV2.txInfoValidRange info
 
     endTime :: Integer
-    endTime = calculateEndTime (cdtStartDay datum) (cdtLockPeriod datum)
+    endTime = calculateEndTime (cdtStartPoint datum) (cdtLockPeriod datum) (cdtTimeUnit datum)
 
     -- inputs outputs
     txOutputs :: [PlutusV2.TxOut]
@@ -150,10 +151,11 @@ mkValidator datum redeemer context =
         t :: Integer
         t = cdtVestingStage datum
     
+    -- datum on the tx out
     getOutboundDatum :: [PlutusV2.TxOut] -> PlutusV2.Value -> Maybe CustomDatumType
     getOutboundDatum []     _ = Nothing
     getOutboundDatum (x:xs) val =
-      if traceIfFalse "Incorrect Value" $ PlutusV2.txOutValue x == val -- strict value continue
+      if traceIfFalse "Incorrect Outbound Value" $ PlutusV2.txOutValue x == val -- strict value continue
         then
           case PlutusV2.txOutDatum x of
             -- datumless

@@ -21,7 +21,7 @@ cd vesting-contract
 #
 rm validator.bytes
 rm validator.hash
-cabal build -w ghc-8.10.7 -O2
+cabal build -w ghc-8.10.7
 cabal run vesting-contract
 cardano-cli address build --payment-script-file vesting-contract.plutus --testnet-magic 1097911063 --out-file validator.addr
 cardano-cli transaction policyid --script-file vesting-contract.plutus > validator.hash

@@ -14,7 +14,8 @@ vestor_pkh=$(cardano-cli address key-hash --payment-verification-key-file wallet
 # Token Information
 policy_id=$(cat ../start_info.json | jq -r .pid)
 token_name=$(cat ../start_info.json | jq -r .tkn)
-amount=100
+amount=1600
+asset="3900 ${policy_id}.${token_name}"
 sc_asset="${amount} ${policy_id}.${token_name}"
 
 # minimum ada to get in
@@ -23,6 +24,7 @@ sc_min_value=$(${cli} transaction calculate-min-required-utxo \
     --tx-out-datum-embed-file data/current_datum.json \
     --tx-out="${vestor_address} ${sc_asset}" | tr -dc '0-9')
 
+vestor_address_change="${vestor_address} + ${sc_min_value} + ${asset}"
 vestor_address_out="${vestor_address} + ${sc_min_value} + ${sc_asset}"
 echo "Issuer OUTPUT: "${vestor_address_out}
 #
@@ -65,10 +67,16 @@ script_ref_utxo=$(cardano-cli transaction txid --tx-file tmp/tx-reference-utxo.s
 collat_pkh=$(${cli} address key-hash --payment-verification-key-file wallets/collat-wallet/payment.vkey)
 collat_utxo="87a43ee3889f827356a23a7459ef5f9eaf843880da1996d1b68595fb4171f63c" # in collat wallet
 
+slot=$(${cli} query tip --testnet-magic 1097911063 | jq .slot)
+current_slot=$(($slot - 1))
+final_slot=$(($slot + 750))
+
 echo -e "\033[0;36m Building Tx \033[0m"
 FEE=$(${cli} transaction build \
     --babbage-era \
     --protocol-params-file tmp/protocol.json \
+    --invalid-before ${current_slot} \
+    --invalid-hereafter ${final_slot} \
     --out-file tmp/tx.draft \
     --change-address ${vestor_address} \
     --tx-in ${vestor_tx_in} \
@@ -79,6 +87,7 @@ FEE=$(${cli} transaction build \
     --spending-reference-tx-in-inline-datum-present \
     --spending-reference-tx-in-redeemer-file data/close_redeemer.json \
     --tx-out="${vestor_address_out}" \
+    --tx-out="${vestor_address_change}" \
     --required-signer-hash ${vestor_pkh} \
     --required-signer-hash ${collat_pkh} \
     --testnet-magic 1097911063)

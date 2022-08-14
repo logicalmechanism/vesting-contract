@@ -16,16 +16,17 @@ vestor_pkh=$(cardano-cli address key-hash --payment-verification-key-file wallet
 # Token Information
 policy_id=$(cat ../start_info.json | jq -r .pid)
 token_name=$(cat ../start_info.json | jq -r .tkn)
-amount=100
-sc_asset="${amount} ${policy_id}.${token_name}"
+amount=1800
+asset="${amount} ${policy_id}.${token_name}"
+sc_asset="1600 ${policy_id}.${token_name}"
 
 sc_min_value=$(${cli} transaction calculate-min-required-utxo \
     --protocol-params-file tmp/protocol.json \
     --tx-out-datum-embed-file data/current_datum.json \
     --tx-out="${script_address} ${sc_asset}" | tr -dc '0-9')
 
-vestor_address_out="${vestor_address} + ${sc_min_value} + ${sc_asset}"
-sc_address_out="${script_address} + ${sc_min_value}"
+vestor_address_out="${vestor_address} + ${sc_min_value} + ${asset}"
+sc_address_out="${script_address} + ${sc_min_value} + ${sc_asset}"
 echo "Vestor OUTPUT: "${vestor_address_out}
 echo "Script OUTPUT: "${sc_address_out}
 #
@@ -34,19 +35,19 @@ echo "Script OUTPUT: "${sc_address_out}
 echo -e "\033[0;36m Gathering UTxO Information  \033[0m"
 ${cli} query utxo \
     --testnet-magic 1097911063 \
-    --address ${vestor_address} \
-    --out-file tmp/vestor_utxo.json
+    --address ${issuer_address} \
+    --out-file tmp/issuer_utxo.json
 
-TXNS=$(jq length tmp/vestor_utxo.json)
+TXNS=$(jq length tmp/issuer_utxo.json)
 if [ "$TXNS" -eq "0" ]; then
    echo -e "\n \033[0;31m NO UTxOs Found At ${vestor_address} \033[0m \n";
    exit;
 fi
 alltxin=""
-TXIN=$(jq -r --arg alltxin "" 'keys[] | . + $alltxin + " --tx-in"' tmp/vestor_utxo.json)
-CTXIN=$(jq -r --arg alltxin "" 'keys[] | . + $alltxin + " --tx-in-collateral"' tmp/vestor_utxo.json)
+TXIN=$(jq -r --arg alltxin "" 'keys[] | . + $alltxin + " --tx-in"' tmp/issuer_utxo.json)
+CTXIN=$(jq -r --arg alltxin "" 'keys[] | . + $alltxin + " --tx-in-collateral"' tmp/issuer_utxo.json)
 collateral_tx_in=${CTXIN::-19}
-vestor_tx_in=${TXIN::-8}
+issuer_tx_in=${TXIN::-8}
 
 echo -e "\033[0;36m Gathering Script UTxO Information  \033[0m"
 ${cli} query utxo \
@@ -70,7 +71,7 @@ collat_utxo="87a43ee3889f827356a23a7459ef5f9eaf843880da1996d1b68595fb4171f63c" #
 
 slot=$(${cli} query tip --testnet-magic 1097911063 | jq .slot)
 current_slot=$(($slot - 1))
-final_slot=$(($slot + 150))
+final_slot=$(($slot + 750))
 
 echo -e "\033[0;36m Building Tx \033[0m"
 FEE=$(${cli} transaction build \
@@ -79,8 +80,8 @@ FEE=$(${cli} transaction build \
     --invalid-before ${current_slot} \
     --invalid-hereafter ${final_slot} \
     --out-file tmp/tx.draft \
-    --change-address ${vestor_address} \
-    --tx-in ${vestor_tx_in} \
+    --change-address ${issuer_address} \
+    --tx-in ${issuer_tx_in} \
     --tx-in-collateral="${collat_utxo}#0" \
     --tx-in ${script_tx_in}  \
     --spending-tx-in-reference="${script_ref_utxo}#1" \
@@ -103,6 +104,7 @@ echo -e "\033[1;32m Fee: \033[0m" $FEE
 #
 echo -e "\033[0;36m Signing \033[0m"
 ${cli} transaction sign \
+    --signing-key-file wallets/seller-wallet/payment.skey \
     --signing-key-file wallets/buyer-wallet/payment.skey \
     --signing-key-file wallets/collat-wallet/payment.skey \
     --tx-body-file tmp/tx.draft \

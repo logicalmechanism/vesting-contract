@@ -27,6 +27,7 @@
 {-# OPTIONS_GHC -fexpose-all-unfoldings       #-}
 module HelperFunctions
   ( isAddrGettingPaid
+  , isAddrHolding
   , isNInputs
   , isNOutputs
   , createAddress
@@ -37,6 +38,9 @@ module HelperFunctions
   , totalReward
   , pow
   , findFactors
+  , strToInt
+  , reduceNumber
+  , baseQ
   ) where
 import           PlutusTx.Prelude 
 import           Plutus.V1.Ledger.Credential
@@ -44,10 +48,47 @@ import qualified Plutus.V1.Ledger.Time       as Time
 import qualified Plutus.V1.Ledger.Interval   as Interval
 import qualified Plutus.V1.Ledger.Value      as Value
 import qualified Plutus.V2.Ledger.Api        as PlutusV2
+import qualified PlutusTx.Builtins.Internal  as Internal
 {- |
   Author   : The Ancient Kraken
   Copyright: 2022
 -}
+-------------------------------------------------------------------------------
+-- | Write an integer in base Q and return a list of integers.
+-------------------------------------------------------------------------------
+baseQ :: Integer -> Integer -> [Integer]
+baseQ number base = baseQ' number base []
+  where
+    baseQ' :: Integer -> Integer -> [Integer] -> [Integer]
+    baseQ' number' base' list = do
+      if number' == 0
+      then list
+      else baseQ' (Internal.divideInteger number' base') base' (Internal.modInteger number' base' : list)
+-------------------------------------------------------------------------------
+-- | reduction
+-------------------------------------------------------------------------------
+reduceNumber :: Integer -> Integer
+reduceNumber number' = wrapperReduceNumber number' 53
+  where
+    wrapperReduceNumber :: Integer -> Integer -> Integer
+    wrapperReduceNumber number counter = 
+      if number <= 10000
+        then number
+        else wrapperReduceNumber (divide number counter + counter) (counter - 1)
+-------------------------------------------------------------------------------
+-- | Converts a string to an integer. Max length is 6 for on chain.
+-------------------------------------------------------------------------------
+strToInt :: BuiltinByteString -> Integer
+strToInt hexString = hexStringToInteger hexString fixedLength 1 -- force length
+  where
+    
+    fixedLength :: Integer
+    fixedLength = 31
+
+    hexStringToInteger :: BuiltinByteString -> Integer -> Integer -> Integer
+    hexStringToInteger hex_string counter value'
+      | counter > 0 = hexStringToInteger hex_string (counter - 1) (value' * (indexByteString hex_string counter + 1))
+      | otherwise = value' * (indexByteString hex_string 0 + 1)
 -------------------------------------------------------------------------------
 -- | factors of t
 -------------------------------------------------------------------------------
@@ -72,7 +113,13 @@ pow x n = if n == 0 then 1 else if n == 1 then x else
 -- | Total reward for f = v - t*d
 -------------------------------------------------------------------------------
 totalReward :: Integer -> Integer -> Integer
-totalReward v0 deltaV = divide (v0 * (v0 + deltaV)) (2 * deltaV)
+totalReward v0 deltaV = if deltaV == 0 then v0 else summedReward 0 v0 deltaV 0
+
+summedReward :: Integer -> Integer -> Integer -> Integer -> Integer
+summedReward counter v0 deltaV t = 
+  if t < divide v0 deltaV + 1
+    then summedReward (counter + rewardFunction v0 deltaV t) v0 deltaV (t+1)
+    else counter
 -------------------------------------------------------------------------------
 -- | Assume Linear reward f = v - t*d
 -------------------------------------------------------------------------------
@@ -84,25 +131,25 @@ rewardFunction v0 deltaV t = if value >= 0 then value else 0
 -------------------------------------------------------------------------------
 -- | Calculates the ending time in unix time for some vestment.
 -------------------------------------------------------------------------------
-calculateEndTime :: Integer -> Integer -> Integer
-calculateEndTime startDay lockedPeriod = endingTime
+calculateEndTime :: Integer -> Integer -> Integer -> Integer
+calculateEndTime startDay lockedPeriod timeUnit = endingTime
   where
-  -- unix time at epoch 312
+  -- This must be some fix point in time
     timeTilRefEpoch :: Integer
-    -- timeTilRefEpoch = 1640987100000  -- mainnet
-    timeTilRefEpoch = 1640895900000  -- testnet
+    -- timeTilRefEpoch = 1640895900000
+    timeTilRefEpoch = 1660498238433  -- 1030am 8/14
 
     -- time unit
-    lengthOfDay :: Integer
-    lengthOfDay = 86400000
+    lengthOfTime :: Integer
+    lengthOfTime = timeUnit
 
     -- starting Time is just the reference plus how many days in nanoseconds.
     startingTime :: Integer
-    startingTime = timeTilRefEpoch + startDay * lengthOfDay
+    startingTime = timeTilRefEpoch + startDay * lengthOfTime
 
     -- ending time is just starting time plus the vesting period.
     endingTime :: Integer
-    endingTime = startingTime + lockedPeriod * lengthOfDay
+    endingTime = startingTime + lockedPeriod * lengthOfTime
 -------------------------------------------------------------------------------
 -- | Pick the locking interval, assume negative inf to endingTime.
 -------------------------------------------------------------------------------
@@ -152,7 +199,22 @@ isAddrGettingPaid (x:xs) addr val
     checkAddr = PlutusV2.txOutAddress x == addr
 
     checkVal :: Bool
-    checkVal = Value.geq (PlutusV2.txOutValue x) val
+    checkVal = PlutusV2.txOutValue x == val
+    -- checkVal = Value.geq (PlutusV2.txOutValue x) val
+-------------------------------------------------------------------------------
+-- | Search each TxOut for an addr and value.
+-------------------------------------------------------------------------------
+isAddrHolding :: [PlutusV2.TxOut] -> PlutusV2.Address -> Integer -> PlutusV2.CurrencySymbol -> PlutusV2.TokenName -> Bool
+isAddrHolding []     _    _   _   _ = False
+isAddrHolding (x:xs) addr val pid tkn
+  | checkAddr && checkVal = True
+  | otherwise             = isAddrHolding xs addr val pid tkn
+  where
+    checkAddr :: Bool
+    checkAddr = PlutusV2.txOutAddress x == addr
+
+    checkVal :: Bool
+    checkVal = Value.valueOf (PlutusV2.txOutValue x) pid tkn == val
 -------------------------------------------------------------------------------
 -- | Force a number of inputs to have datums
 -------------------------------------------------------------------------------

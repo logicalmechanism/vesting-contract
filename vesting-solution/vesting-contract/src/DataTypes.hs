@@ -32,8 +32,9 @@ module DataTypes
   , cdtVestingUserSc
   , cdtStartingAmount
   , cdtDeltaAmount
+  , cdtStartPoint
   , cdtLockPeriod
-  , cdtStartDay
+  , cdtTimeUnit
   ) where
 import qualified PlutusTx
 import           PlutusTx.Prelude
@@ -43,19 +44,21 @@ import qualified Plutus.V2.Ledger.Api as PlutusV2
 -------------------------------------------------------------------------------
 data CustomDatumType = CustomDatumType
   { cdtVestingStage   :: Integer
-  -- ^ The stage determines the deadline and reward.
+  -- ^ The vesting stage determines the deadline and reward.
   , cdtVestingUserPkh :: PlutusV2.PubKeyHash
   -- ^ The public key hash of the receiver.
   , cdtVestingUserSc  :: PlutusV2.PubKeyHash
   -- ^ The stake hash of the receiver.
   , cdtStartingAmount :: Integer
-  -- ^ The starting amount.
-  , cdtDeltaAmount :: Integer
-  -- ^ The delta amount to retrieve.
-  , cdtLockPeriod :: Integer
-  -- ^ The lock period in days between vestments.
-  , cdtStartDay :: Integer
-  -- ^ The starting day counted from epoch 312
+  -- ^ The starting reward amount at stage 0.
+  , cdtDeltaAmount    :: Integer
+  -- ^ The decrease to the reward amount per vesting stage.
+  , cdtStartPoint     :: Integer
+  -- ^ The starting point is the number of time units from the reference time
+  , cdtLockPeriod     :: Integer
+  -- ^ The lock period is the number of time units between vestments.
+  , cdtTimeUnit       :: Integer
+  -- ^ The time unit used for counting.
   }
 PlutusTx.unstableMakeIsData ''CustomDatumType
 -- old is a; new is b
@@ -67,4 +70,5 @@ instance Eq CustomDatumType where
            ( cdtStartingAmount     a == cdtStartingAmount b ) &&
            ( cdtDeltaAmount        a == cdtDeltaAmount    b ) &&
            ( cdtLockPeriod         a == cdtLockPeriod     b ) &&
-           ( (cdtStartDay a) + (cdtLockPeriod a) == cdtStartDay b )
+           ( cdtTimeUnit           a == cdtTimeUnit       b ) &&
+           ( (cdtStartPoint a) + (cdtLockPeriod a) == cdtStartPoint b )
