@@ -16,9 +16,9 @@ vestor_pkh=$(cardano-cli address key-hash --payment-verification-key-file wallet
 # Token Information
 policy_id=$(cat ../start_info.json | jq -r .pid)
 token_name=$(cat ../start_info.json | jq -r .tkn)
-amount=500
+amount=1800
 asset="${amount} ${policy_id}.${token_name}"
-sc_asset="4000 ${policy_id}.${token_name}"
+sc_asset="1600 ${policy_id}.${token_name}"
 
 sc_min_value=$(${cli} transaction calculate-min-required-utxo \
     --protocol-params-file tmp/protocol.json \

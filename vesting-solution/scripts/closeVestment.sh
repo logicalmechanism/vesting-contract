@@ -14,8 +14,8 @@ vestor_pkh=$(cardano-cli address key-hash --payment-verification-key-file wallet
 # Token Information
 policy_id=$(cat ../start_info.json | jq -r .pid)
 token_name=$(cat ../start_info.json | jq -r .tkn)
-amount=4000
-asset="1500 ${policy_id}.${token_name}"
+amount=1600
+asset="3900 ${policy_id}.${token_name}"
 sc_asset="${amount} ${policy_id}.${token_name}"
 
 # minimum ada to get in
@@ -24,6 +24,7 @@ sc_min_value=$(${cli} transaction calculate-min-required-utxo \
     --tx-out-datum-embed-file data/current_datum.json \
     --tx-out="${vestor_address} ${sc_asset}" | tr -dc '0-9')
 
+vestor_address_change="${vestor_address} + ${sc_min_value} + ${asset}"
 vestor_address_out="${vestor_address} + ${sc_min_value} + ${sc_asset}"
 echo "Issuer OUTPUT: "${vestor_address_out}
 #
@@ -86,6 +87,7 @@ FEE=$(${cli} transaction build \
     --spending-reference-tx-in-inline-datum-present \
     --spending-reference-tx-in-redeemer-file data/close_redeemer.json \
     --tx-out="${vestor_address_out}" \
+    --tx-out="${vestor_address_change}" \
     --required-signer-hash ${vestor_pkh} \
     --required-signer-hash ${collat_pkh} \
     --testnet-magic 1097911063)

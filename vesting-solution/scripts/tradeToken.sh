@@ -12,7 +12,7 @@ issuer_address=$(cat wallets/seller-wallet/payment.addr)
 # Token Information
 policy_id=$(cat ../start_info.json | jq -r .pid)
 token_name=$(cat ../start_info.json | jq -r .tkn)
-amount=3400
+amount=5500
 asset="${amount} ${policy_id}.${token_name}"
 # asset="${amount} ${policy_id}.${token_hex}"
 

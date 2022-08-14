@@ -44,21 +44,21 @@ import qualified Plutus.V2.Ledger.Api as PlutusV2
 -------------------------------------------------------------------------------
 data CustomDatumType = CustomDatumType
   { cdtVestingStage   :: Integer
-  -- ^ The stage determines the deadline and reward.
+  -- ^ The vesting stage determines the deadline and reward.
   , cdtVestingUserPkh :: PlutusV2.PubKeyHash
   -- ^ The public key hash of the receiver.
   , cdtVestingUserSc  :: PlutusV2.PubKeyHash
   -- ^ The stake hash of the receiver.
   , cdtStartingAmount :: Integer
-  -- ^ The starting amount.
+  -- ^ The starting reward amount at stage 0.
   , cdtDeltaAmount    :: Integer
-  -- ^ The delta amount to retrieve.
+  -- ^ The decrease to the reward amount per vesting stage.
   , cdtStartPoint     :: Integer
-  -- ^ The starting day counted from epoch 312
+  -- ^ The starting point is the number of time units from the reference time
   , cdtLockPeriod     :: Integer
-  -- ^ The lock period in days between vestments.
+  -- ^ The lock period is the number of time units between vestments.
   , cdtTimeUnit       :: Integer
-  -- ^ The starting day counted from epoch 312
+  -- ^ The time unit used for counting.
   }
 PlutusTx.unstableMakeIsData ''CustomDatumType
 -- old is a; new is b

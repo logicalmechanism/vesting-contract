@@ -66,11 +66,9 @@ lockTkn = PlutusV2.TokenName {PlutusV2.unTokenName = createBuiltinByteString [11
 -- | Create the redeemer type.
 -------------------------------------------------------------------------------
 data CustomRedeemerType = Retrieve | 
-                          Close    |
-                          Debug -- remove in production
+                          Close
 PlutusTx.makeIsDataIndexed ''CustomRedeemerType [ ( 'Retrieve, 0 )
                                                 , ( 'Close,    1 )
-                                                , ( 'Debug,    2 ) -- remove in production
                                                 ]
 -------------------------------------------------------------------------------
 -- | mkValidator :: Datum -> Redeemer -> ScriptContext -> Bool
@@ -100,13 +98,13 @@ mkValidator datum redeemer context =
       ; let c = traceIfFalse "Funds Not Being Retrieved"    $ isAddrGettingPaid txOutputs userAddr validatingValue           -- send the leftover
       ; let d = traceIfFalse "Funds Are Left To Vest"       $ validatingTkn <= retrievingTkn || Value.isZero retrievingValue -- not enough or leftover
       ; let e = traceIfFalse "The Value Is Still Locked"    $ isTxOutsideInterval endTime validityInterval                   -- must be outside lock
-      ;         traceIfFalse "Error: Close Failure" $ all (==(True :: Bool)) [a,b,c,d,e]
+      ;         traceIfFalse "Error: Close Failure"         $ all (==(True :: Bool)) [a,b,c,d,e]
       }
-    Debug -> True -- remove in production
   where
     info :: PlutusV2.TxInfo
     info = ContextsV2.scriptContextTxInfo  context
 
+    -- time stuff
     validityInterval :: PlutusV2.POSIXTimeRange
     validityInterval = ContextsV2.txInfoValidRange info
 
@@ -153,6 +151,7 @@ mkValidator datum redeemer context =
         t :: Integer
         t = cdtVestingStage datum
     
+    -- datum on the tx out
     getOutboundDatum :: [PlutusV2.TxOut] -> PlutusV2.Value -> Maybe CustomDatumType
     getOutboundDatum []     _ = Nothing
     getOutboundDatum (x:xs) val =
