@@ -113,7 +113,7 @@ pow x n = if n == 0 then 1 else if n == 1 then x else
 -- | Total reward for f = v - t*d
 -------------------------------------------------------------------------------
 totalReward :: Integer -> Integer -> Integer
-totalReward v0 deltaV = summedReward 0 v0 deltaV 0
+totalReward v0 deltaV = if deltaV == 0 then v0 else summedReward 0 v0 deltaV 0
 
 summedReward :: Integer -> Integer -> Integer -> Integer -> Integer
 summedReward counter v0 deltaV t = 
@@ -131,25 +131,25 @@ rewardFunction v0 deltaV t = if value >= 0 then value else 0
 -------------------------------------------------------------------------------
 -- | Calculates the ending time in unix time for some vestment.
 -------------------------------------------------------------------------------
-calculateEndTime :: Integer -> Integer -> Integer
-calculateEndTime startDay lockedPeriod = endingTime
+calculateEndTime :: Integer -> Integer -> Integer -> Integer
+calculateEndTime startDay lockedPeriod timeUnit = endingTime
   where
-  -- unix time at epoch 312
+  -- This must be some fix point in time
     timeTilRefEpoch :: Integer
-    -- timeTilRefEpoch = 1640987100000  -- mainnet
-    timeTilRefEpoch = 1640895900000  -- testnet
+    -- timeTilRefEpoch = 1640895900000
+    timeTilRefEpoch = 1660498238433  -- 1030am 8/14
 
     -- time unit
-    lengthOfDay :: Integer
-    lengthOfDay = 86400000
+    lengthOfTime :: Integer
+    lengthOfTime = timeUnit
 
     -- starting Time is just the reference plus how many days in nanoseconds.
     startingTime :: Integer
-    startingTime = timeTilRefEpoch + startDay * lengthOfDay
+    startingTime = timeTilRefEpoch + startDay * lengthOfTime
 
     -- ending time is just starting time plus the vesting period.
     endingTime :: Integer
-    endingTime = startingTime + lockedPeriod * lengthOfDay
+    endingTime = startingTime + lockedPeriod * lengthOfTime
 -------------------------------------------------------------------------------
 -- | Pick the locking interval, assume negative inf to endingTime.
 -------------------------------------------------------------------------------
@@ -199,7 +199,8 @@ isAddrGettingPaid (x:xs) addr val
     checkAddr = PlutusV2.txOutAddress x == addr
 
     checkVal :: Bool
-    checkVal = Value.geq (PlutusV2.txOutValue x) val
+    checkVal = PlutusV2.txOutValue x == val
+    -- checkVal = Value.geq (PlutusV2.txOutValue x) val
 -------------------------------------------------------------------------------
 -- | Search each TxOut for an addr and value.
 -------------------------------------------------------------------------------

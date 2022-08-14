@@ -32,8 +32,9 @@ module DataTypes
   , cdtVestingUserSc
   , cdtStartingAmount
   , cdtDeltaAmount
+  , cdtStartPoint
   , cdtLockPeriod
-  , cdtStartDay
+  , cdtTimeUnit
   ) where
 import qualified PlutusTx
 import           PlutusTx.Prelude
@@ -50,11 +51,13 @@ data CustomDatumType = CustomDatumType
   -- ^ The stake hash of the receiver.
   , cdtStartingAmount :: Integer
   -- ^ The starting amount.
-  , cdtDeltaAmount :: Integer
+  , cdtDeltaAmount    :: Integer
   -- ^ The delta amount to retrieve.
-  , cdtLockPeriod :: Integer
+  , cdtStartPoint     :: Integer
+  -- ^ The starting day counted from epoch 312
+  , cdtLockPeriod     :: Integer
   -- ^ The lock period in days between vestments.
-  , cdtStartDay :: Integer
+  , cdtTimeUnit       :: Integer
   -- ^ The starting day counted from epoch 312
   }
 PlutusTx.unstableMakeIsData ''CustomDatumType
@@ -67,4 +70,5 @@ instance Eq CustomDatumType where
            ( cdtStartingAmount     a == cdtStartingAmount b ) &&
            ( cdtDeltaAmount        a == cdtDeltaAmount    b ) &&
            ( cdtLockPeriod         a == cdtLockPeriod     b ) &&
-           ( (cdtStartDay a) + (cdtLockPeriod a) == cdtStartDay b )
+           ( cdtTimeUnit           a == cdtTimeUnit       b ) &&
+           ( (cdtStartPoint a) + (cdtLockPeriod a) == cdtStartPoint b )

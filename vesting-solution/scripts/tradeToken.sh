@@ -9,12 +9,12 @@ cli=$(cat path_to_cli.sh)
 vestor_address=$(cat wallets/buyer-wallet/payment.addr)
 issuer_address=$(cat wallets/seller-wallet/payment.addr)
 
-# Define Asset to be printed here
-policy_id="48664e8d76f2b15606677bd117a3eac9929c378ac547ed295518dfd5"
-token_name="tBigTokenName02"
-amount=100
-token_hex=$(echo -n ${token_name} | xxd -ps)
-asset="${amount} ${policy_id}.${token_hex}"
+# Token Information
+policy_id=$(cat ../start_info.json | jq -r .pid)
+token_name=$(cat ../start_info.json | jq -r .tkn)
+amount=3400
+asset="${amount} ${policy_id}.${token_name}"
+# asset="${amount} ${policy_id}.${token_hex}"
 
 min_utxo=$(${cli} transaction calculate-min-required-utxo \
     --protocol-params-file tmp/protocol.json \
@@ -39,9 +39,8 @@ HEXTXIN=${TXIN::-8}
 
 echo -e "\033[0;36m Building Tx \033[0m"
 FEE=$(${cli} transaction build \
-    --alonzo-era \
+    --babbage-era \
     --protocol-params-file tmp/protocol.json \
-    --invalid-hereafter 99999999 \
     --out-file tmp/tx.draft \
     --change-address ${vestor_address} \
     --tx-in ${HEXTXIN} \
@@ -57,7 +56,7 @@ echo -e "\033[1;32m Fee: \033[0m" $FEE
 #
 echo -e "\033[0;36m Signing \033[0m"
 ${cli} transaction sign \
-    --signing-key-file wallets/vestor-wallet/payment.skey \
+    --signing-key-file wallets/buyer-wallet/payment.skey \
     --tx-body-file tmp/tx.draft \
     --out-file tmp/tx.signed \
     --testnet-magic 1097911063

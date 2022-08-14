@@ -15,7 +15,7 @@ vestor_address=$(cat wallets/buyer-wallet/payment.addr)
 # Token Information
 policy_id=$(cat ../start_info.json | jq -r .pid)
 token_name=$(cat ../start_info.json | jq -r .tkn)
-amount=100
+amount=2100
 sc_asset="${amount} ${policy_id}.${token_name}"
 
 # minimum ada to get in
