@@ -40,8 +40,8 @@ import qualified Plutus.V2.Ledger.Api           as PlutusV2
 import qualified Plutus.V2.Ledger.Contexts      as ContextsV2
 import qualified Plutus.V1.Ledger.Value         as Value
 import           Plutus.Script.Utils.V2.Scripts as Utils
-import HelperFunctions
-import DataTypes
+import           HelperFunctions
+import           DataTypes
 {- |
   Author   : The Ancient Kraken
   Copyright: 2022
@@ -62,6 +62,13 @@ lockPid = PlutusV2.CurrencySymbol {PlutusV2.unCurrencySymbol = createBuiltinByte
 
 lockTkn :: PlutusV2.TokenName
 lockTkn = PlutusV2.TokenName {PlutusV2.unTokenName = createBuiltinByteString [116, 68, 82, 73, 80] }
+
+-------------------------------------------------------------------------------
+-- | Create the datum parameters data object.
+-------------------------------------------------------------------------------
+data CustomDatumType = Vesting VestingData
+PlutusTx.makeIsDataIndexed ''CustomDatumType  [ ( 'Vesting, 0 ) ]
+
 -------------------------------------------------------------------------------
 -- | Create the redeemer type.
 -------------------------------------------------------------------------------
@@ -70,48 +77,89 @@ data CustomRedeemerType = Retrieve |
 PlutusTx.makeIsDataIndexed ''CustomRedeemerType [ ( 'Retrieve, 0 )
                                                 , ( 'Close,    1 )
                                                 ]
+
 -------------------------------------------------------------------------------
 -- | mkValidator :: Datum -> Redeemer -> ScriptContext -> Bool
 -------------------------------------------------------------------------------
 {-# INLINABLE mkValidator #-}
 mkValidator :: CustomDatumType -> CustomRedeemerType -> PlutusV2.ScriptContext -> Bool
 mkValidator datum redeemer context =
-  case redeemer of
-    Retrieve -> 
-      case getOutboundDatum contTxOutputs (validatingValue - retrievingValue) of
-        Nothing            -> traceIfFalse "Retrieve:GetOutboundDatum Error" False
-        Just outboundDatum -> do
-          { let retrievingTkn = Value.valueOf retrievingValue lockPid lockTkn
-          ; let a = traceIfFalse "Input / Output Error"      $ isNInputs txInputs 1 && isNOutputs contTxOutputs 1             -- single tx going in
-          ; let b = traceIfFalse "Incorrect Tx Signer Error" $ ContextsV2.txSignedBy info vestingUser                         -- wallet must sign it
-          ; let c = traceIfFalse "Datum Equality Error"      $ datum == outboundDatum                                         -- the datum changes correctly
-          ; let d = traceIfFalse "Vestment Not Paid Error"   $ isAddrHolding txOutputs userAddr retrievingTkn lockPid lockTkn -- wallet must get the utxo
-          ; let e = traceIfFalse "The Value Is Still Locked" $ isTxOutsideInterval endTime validityInterval                   -- must be outside lock
-          ; let f = traceIfFalse "Not Enough Reward Error"   $ not $ Value.isZero retrievingValue                             -- cant be non zero reward
-          ;         traceIfFalse "Error: Retrieve Failure"   $ all (==(True :: Bool)) [a,b,c,d,e,f]
+  case datum of
+    {- | Vesting VestingData
+      
+      Allows a UTxO to be retrieved or closed. All vesting information is contained in
+      the datum of the UTxO. A reward may be retrieve if and only if the vesting UTxO
+      is returned back to the script under very specific conditions. A UTxO is then closed
+      when the vesting is complete.
+
+    -}
+    (Vesting vd) ->
+      -- datum based variables
+      let endTime         = calculateEndTime (cdtStartPoint vd) (cdtLockPeriod vd) (cdtTimeUnit vd)
+          vestingUser     = cdtVestingUserPkh vd
+          userAddr        = createAddress vestingUser (cdtVestingUserSc vd)
+          retrievingValue = calculateRetrieveValue vd
+      in case redeemer of
+        
+        {- | Retrieve
+      
+          Allows a reward to be retrieved from the contract.
+
+          There can only be a single script input and a single output going to the script. On that output going
+          to the script, the UTxO must contain the correct return value and datum. The act of vesting is always a choice
+          of the vesting user so that user must sign the transaction. The vesting user must recieve their rewards
+          via some kind of UTxO inside the transaction and the reward can not be zero. Finally, a vesting user can only
+          receive a reward after their locking period.
+
+        -}
+        Retrieve -> 
+          case getOutboundDatum contTxOutputs (validatingValue - retrievingValue) of   -- get datum from utxo holding that val
+            Nothing            -> traceIfFalse "Retrieve:GetOutboundDatum Error" False -- no txout has the correct val
+            Just outboundDatum -> 
+              case outboundDatum of
+                
+                -- | Go back to the Vesting state for the next vesting phase.
+                (Vesting vd') -> do
+                  { let retrievingTkn = Value.valueOf retrievingValue lockPid lockTkn
+                  ; let a = traceIfFalse "Too Many In / Out"  $ isNInputs txInputs 1 && isNOutputs contTxOutputs 1             -- single input single output
+                  ; let b = traceIfFalse "Wrong Tx Signer"    $ ContextsV2.txSignedBy info vestingUser                         -- wallet must sign it
+                  ; let c = traceIfFalse "Incorrect Datum"    $ vd == vd'                                                      -- the datum changes correctly
+                  ; let d = traceIfFalse "Vestment Not Paid"  $ isAddrHolding txOutputs userAddr retrievingTkn lockPid lockTkn -- wallet must get the tokens
+                  ; let e = traceIfFalse "Value Still Locked" $ isTxOutsideInterval endTime validityInterval                   -- must be outside lock
+                  ; let f = traceIfFalse "Reward Is Zero"     $ not $ Value.isZero retrievingValue                             -- reward is non zero
+                  ;         traceIfFalse "Retrieve Error"     $ all (==(True :: Bool)) [a,b,c,d,e,f]
+                  }
+
+        {- | Close
+      
+          Allows the vestment UTxO to be closed from the contract.
+
+          There can only be a single script input as the entire value being spent must return to the vesting user.
+          Nothing is returning to the script here so no datum checks need to occur. Closing is part of the act of
+          vesting so it requires the vesting user to sign the transaction. The vesting user must recieve at least the vestment
+          UTxO inside the transaction. A vestment can be closed either when the reward is too large and the there is not enough
+          tokens to give, or when the reward is zero. Finally, a vesting user can only receive a reward after their
+          locking period.
+
+        -}
+        Close -> do
+          { let validatingTkn = Value.valueOf validatingValue lockPid lockTkn
+          ; let retrievingTkn = Value.valueOf retrievingValue lockPid lockTkn
+          ; let a = traceIfFalse "Too Many In / Out"  $ isNInputs txInputs 1 && isNOutputs contTxOutputs 0             -- single input no outputs
+          ; let b = traceIfFalse "Wrong Tx Signer"    $ ContextsV2.txSignedBy info vestingUser                         -- wallet must sign it
+          ; let c = traceIfFalse "Vestment Not Paid"  $ isAddrGettingPaid txOutputs userAddr validatingValue           -- send back the leftover
+          ; let d = traceIfFalse "Funds Are Leftover" $ validatingTkn <= retrievingTkn || Value.isZero retrievingValue -- not enough or leftover
+          ; let e = traceIfFalse "UTxO Still Locked"  $ isTxOutsideInterval endTime validityInterval                   -- must be outside lock
+          ;         traceIfFalse "Close Error"        $ all (==(True :: Bool)) [a,b,c,d,e]
           }
-    Close -> do
-      { let validatingTkn = Value.valueOf validatingValue lockPid lockTkn
-      ; let retrievingTkn = Value.valueOf retrievingValue lockPid lockTkn
-      ; let a = traceIfFalse "Single Script Only"           $ isNInputs txInputs 1 && isNOutputs contTxOutputs 0             -- single input no outputs
-      ; let b = traceIfFalse "Incorrect Tx Signer Error"    $ ContextsV2.txSignedBy info vestingUser                         -- wallet must sign it
-      ; let c = traceIfFalse "Funds Not Being Retrieved"    $ isAddrGettingPaid txOutputs userAddr validatingValue           -- send the leftover
-      ; let d = traceIfFalse "Funds Are Left To Vest"       $ validatingTkn <= retrievingTkn || Value.isZero retrievingValue -- not enough or leftover
-      ; let e = traceIfFalse "The Value Is Still Locked"    $ isTxOutsideInterval endTime validityInterval                   -- must be outside lock
-      ;         traceIfFalse "Error: Close Failure"         $ all (==(True :: Bool)) [a,b,c,d,e]
-      }
+  -- |
   where
     info :: PlutusV2.TxInfo
     info = ContextsV2.scriptContextTxInfo  context
 
-    -- time stuff
     validityInterval :: PlutusV2.POSIXTimeRange
     validityInterval = ContextsV2.txInfoValidRange info
 
-    endTime :: Integer
-    endTime = calculateEndTime (cdtStartPoint datum) (cdtLockPeriod datum) (cdtTimeUnit datum)
-
-    -- inputs outputs
     txOutputs :: [PlutusV2.TxOut]
     txOutputs = ContextsV2.txInfoOutputs info
 
@@ -121,37 +169,33 @@ mkValidator datum redeemer context =
     contTxOutputs :: [PlutusV2.TxOut]
     contTxOutputs = ContextsV2.getContinuingOutputs context
 
-    -- users
-    vestingUser :: PlutusV2.PubKeyHash
-    vestingUser = cdtVestingUserPkh datum
-
-    userAddr :: PlutusV2.Address
-    userAddr = createAddress vestingUser (cdtVestingUserSc datum)
-
-    -- what is currently being spent
     validatingValue :: PlutusV2.Value
     validatingValue =
       case ContextsV2.findOwnInput context of
         Nothing    -> traceError "No Input to Validate." -- This error should never be hit.
         Just input -> PlutusV2.txOutValue $ PlutusV2.txInInfoResolved input
 
-    -- what is going to be rewarded
-    retrievingValue :: PlutusV2.Value
-    retrievingValue = Value.singleton lockPid lockTkn (rewardFunction v0 deltaV t)
+    -------------------------------------------------------------------------------
+    -- | Calculate what is going to be rewarded to the user.
+    -------------------------------------------------------------------------------
+    calculateRetrieveValue :: VestingData -> PlutusV2.Value
+    calculateRetrieveValue datum' = Value.singleton lockPid lockTkn (rewardFunction v0 deltaV t)
       where
         -- starting amount
         v0 :: Integer
-        v0 = cdtStartingAmount datum
+        v0 = cdtStartingAmount datum'
 
         -- amount reduced every period
         deltaV :: Integer
-        deltaV = cdtDeltaAmount datum
+        deltaV = cdtDeltaAmount datum'
 
         -- time increment
         t :: Integer
-        t = cdtVestingStage datum
+        t = cdtVestingStage datum'
     
-    -- datum on the tx out
+    -------------------------------------------------------------------------------
+    -- | Get the datum that holds a value from a list of tx outs.
+    -------------------------------------------------------------------------------
     getOutboundDatum :: [PlutusV2.TxOut] -> PlutusV2.Value -> Maybe CustomDatumType
     getOutboundDatum []     _ = Nothing
     getOutboundDatum (x:xs) val =
@@ -159,12 +203,14 @@ mkValidator datum redeemer context =
         then
           case PlutusV2.txOutDatum x of
             -- datumless
-            PlutusV2.NoOutputDatum -> getOutboundDatum xs val
+            PlutusV2.NoOutputDatum -> getOutboundDatum xs val -- loop anything without datums
+            
             -- inline datum
             (PlutusV2.OutputDatum (PlutusV2.Datum d)) -> 
               case PlutusTx.fromBuiltinData d of
                 Nothing     -> getOutboundDatum xs val
                 Just inline -> Just $ PlutusTx.unsafeFromBuiltinData @CustomDatumType inline
+            
             -- embedded datum
             (PlutusV2.OutputDatumHash dh) -> 
               case ContextsV2.findDatum dh info of
@@ -173,7 +219,10 @@ mkValidator datum redeemer context =
                   case PlutusTx.fromBuiltinData d' of
                     Nothing       -> getOutboundDatum xs val
                     Just embedded -> Just $ PlutusTx.unsafeFromBuiltinData @CustomDatumType embedded
+        -- just loop if bad value
         else getOutboundDatum xs val
+-- end of mkValidator
+
 -------------------------------------------------------------------------------
 -- | Now we need to compile the Validator.
 -------------------------------------------------------------------------------
@@ -182,6 +231,7 @@ validator' = PlutusV2.mkValidatorScript
     $$(PlutusTx.compile [|| wrap ||])
  where
     wrap = Utils.mkUntypedValidator mkValidator
+
 -------------------------------------------------------------------------------
 -- | The code below is required for the plutus script compile.
 -------------------------------------------------------------------------------
