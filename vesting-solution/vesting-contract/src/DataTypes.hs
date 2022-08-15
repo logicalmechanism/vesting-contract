@@ -26,7 +26,7 @@
 {-# OPTIONS_GHC -fno-specialise               #-}
 {-# OPTIONS_GHC -fexpose-all-unfoldings       #-}
 module DataTypes
-  ( CustomDatumType
+  ( VestingData
   , cdtVestingStage
   , cdtVestingUserPkh
   , cdtVestingUserSc
@@ -39,10 +39,14 @@ module DataTypes
 import qualified PlutusTx
 import           PlutusTx.Prelude
 import qualified Plutus.V2.Ledger.Api as PlutusV2
+{- |
+  Author   : The Ancient Kraken
+  Copyright: 2022
+-}
 -------------------------------------------------------------------------------
--- | Create the datum parameters data object.
+-- | Create the vesting data object.
 -------------------------------------------------------------------------------
-data CustomDatumType = CustomDatumType
+data VestingData = VestingData
   { cdtVestingStage   :: Integer
   -- ^ The vesting stage determines the deadline and reward.
   , cdtVestingUserPkh :: PlutusV2.PubKeyHash
@@ -60,9 +64,10 @@ data CustomDatumType = CustomDatumType
   , cdtTimeUnit       :: Integer
   -- ^ The time unit used for counting.
   }
-PlutusTx.unstableMakeIsData ''CustomDatumType
+PlutusTx.unstableMakeIsData ''VestingData
+
 -- old is a; new is b
-instance Eq CustomDatumType where
+instance Eq VestingData where
   {-# INLINABLE (==) #-}
   a == b = ( cdtVestingStage   a + 1 == cdtVestingStage   b ) &&
            ( cdtVestingUserPkh     a == cdtVestingUserPkh b ) &&
