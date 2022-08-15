@@ -203,7 +203,7 @@ mkValidator datum redeemer context =
         then
           case PlutusV2.txOutDatum x of
             -- datumless
-            PlutusV2.NoOutputDatum -> getOutboundDatum xs val
+            PlutusV2.NoOutputDatum -> getOutboundDatum xs val -- loop anything without datums
             
             -- inline datum
             (PlutusV2.OutputDatum (PlutusV2.Datum d)) -> 

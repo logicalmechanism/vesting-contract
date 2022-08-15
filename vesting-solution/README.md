@@ -64,9 +64,9 @@ data VestingData = VestingData
   { cdtVestingStage   :: Integer
   -- ^ The vesting stage determines the deadline and reward.
   , cdtVestingUserPkh :: PlutusV2.PubKeyHash
-  -- ^ The public key hash of the receiver.
+  -- ^ The public key hash of the vestor.
   , cdtVestingUserSc  :: PlutusV2.PubKeyHash
-  -- ^ The stake hash of the receiver.
+  -- ^ The stake hash of the vestor.
   , cdtStartingAmount :: Integer
   -- ^ The starting reward amount at stage 0.
   , cdtDeltaAmount    :: Integer
@@ -87,7 +87,7 @@ The vesting stage represents an integer counter of how many times a user has ves
 
 ## Scripts
 
-There are test example scripts in the scripts folder. It assumes there exists a tmp and wallets folder. The tagged releases do work on testnet. The scripts are designed to vest the test DRIP token over many vesting stages on a 5 min vesting phase.
+There are test example scripts in the scripts folder. It assumes there exists a tmp and wallets folder. The wallet folder structure is shown below. Test wallets are not provided with the repo. The tagged releases do work on testnet. The scripts are designed to vest the test DRIP token over many vesting stages on a 5 min vesting phase.
 
 ```
 wallets ->
@@ -105,7 +105,7 @@ The general flow is setting up a vestment UTxO for a user then that user can ves
 
 # Notes
 
-The contract is designed to be on PlutusV2. This project is an applied continuation of the fund7 project catalyst proposal [A Community Vesting Dapp](https://cardano.ideascale.com/c/idea/382448). The voting aspect is not required for this application and the project has been strip down to just the vesting portion. The majority of the vesting logic remained but some PlutusV2 refinements have been applied.
+The contract is designed to be on PlutusV2. There will not be any PlutusV1 back ports. This project is an applied continuation of the fund7 project catalyst proposal [A Community Vesting Dapp](https://cardano.ideascale.com/c/idea/382448). The voting aspect is not required for this application and the project has been strip down to just the vesting portion. The majority of the vesting logic remained but some PlutusV2 refinements have been applied.
 
 ### Versions Used
 ```
