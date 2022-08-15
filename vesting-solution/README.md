@@ -1,6 +1,33 @@
-# Vesting Contract
+# A Vesting Contract
 
-The vesting contract is initialized by a specific token defined in the start_info.json. The example below is the start information for the test DRIP token.
+```
+The project is being released under Apache License 2.0 (Apache-2.0) so you can do what you like with this repo, as long as you include the required notices. 
+```
+
+Each contract is compiled specifically for a single token vestment solution. This allows a single contract to handle an entire vesting group where each utxo represents a member of the vesting group. This logic allows for a nice seperation of assets and amazing customization on vesting user level. The contract provides the functionality for flat-rate or linear decreasing vesting.
+
+The contract uses arbitrary time units. A vestment starts at t0 from the turn of reference time r0. Each vestment is given out to a vestor at some fix interval, deltaT. For example, a vestment contract can start on r0=Jan 5 2022, t0=4, and gives out rewards every 5 days, deltaT=5, then when a vestor successfull retrieves their vestment for the vesting period the time parameters are updated by adding deltaT to t0 and creating a new time parameter. This process will repeat until all the funds have been retrieved.
+
+The vesting payouts do roll over due to the style of the time parameters in this contract.
+
+The reward parameters allow for a constant or linearly decreasing reward function. Each reward payout follow the equation R = v0 - t * deltaV. The variable t is the vesting stage, an integer representing the total number of vestor payouts. The term v0 is the intial value of the reward and deltaV is the decrease to the reward over time. Some initial calculations must be done to ensure correct parameters but the contract is designed to account for bat maths. The function was chosen to model a typical return curve that decays over time but still allows for a user to get constant rewards if required by the vesting group.
+
+
+# Cloning the repo
+
+The vesting solution is contained in the Logical Mechanism's vesting-contract repository. Clone the repo and checkout the most recent tagged release.
+
+```bash
+git clone https://github.com/logicalmechanism/vesting-contract.git
+cd vesting-contract
+git fetch --all
+git checkout $(curl -s https://api.github.com/repos/logicalmechanism/vesting-contract/releases/latest | jq -r .tag_name)
+```
+This will be the most stable version of the smart contract.
+
+# Building
+
+The vesting contract is initialized by a specific token defined in the start_info.json inside the parent folder. The example below is the start information for the test DRIP token.
 
 ```json
 {
@@ -9,13 +36,22 @@ The vesting contract is initialized by a specific token defined in the start_inf
 }
 ```
 
-The contract can then be compiled with the complete_build.sh script.
+The contract can then be compiled with the complete_build.sh script. This is an automation script for compiling the smart contract.
 
 
 ```bash
 # bash complete_build.sh
 ./complete_build.sh
 ```
+
+This will auto produce all required files for compiling and output a hash at the end for easy verification. It is recommended to use the complete build function.
+
+Inside the vesting-contract folder exist build files for individual builds of the source code. For local testing please use the repl.
+
+```bash
+cabal repl vesting-contract.cabal
+```
+
 
 # Use
 
@@ -63,9 +99,11 @@ wallets ->
 
 The path_to_socket.sh file is the path to the node socket for testnet. Change it accordingly. The get_pkh.sh file takes in an address as its only input and outputs the payment public key hash. This is useful for setting up datums.
 
+The general flow is setting up a vestment UTxO for a user then that user can vest their vestment from the contract. Upon completion of their vestment, the user may close their vestment UTxO and complete the vestment interaction.
+
 # Notes
 
-The contract is designed to be on PlutusV2.
+The contract is designed to be on PlutusV2. This project is an applied continuation of the fund7 project catalyst proposal [A Community Vesting Dapp](https://cardano.ideascale.com/c/idea/382448). The voting aspect is not required for this application and the project has been strip down to just the vesting portion. The majority of the vesting logic remained but some PlutusV2 refinements have been applied.
 
 ### Versions Used
 ```
