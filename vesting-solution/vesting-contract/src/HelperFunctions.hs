@@ -70,7 +70,7 @@ totalReward v0' deltaV' = if deltaV' == 0 then v0' else summedReward 0 v0' delta
         else counter
 
 -------------------------------------------------------------------------------
--- | Assume Linear reward f = v - t*d
+-- | Assumes a linear reward of the form, f = v - t*d.
 -------------------------------------------------------------------------------
 rewardFunction :: Integer -> Integer -> Integer -> Integer
 rewardFunction v0 deltaV t = if value >= 0 then value else 0
@@ -80,26 +80,25 @@ rewardFunction v0 deltaV t = if value >= 0 then value else 0
 
 -------------------------------------------------------------------------------
 -- | Calculates the ending time in unix time for some vestment.
+--
+--   The reference time is defined inside this function.
 -------------------------------------------------------------------------------
 calculateEndTime :: Integer -> Integer -> Integer -> Integer
-calculateEndTime startDay lockedPeriod timeUnit = endingTime
+calculateEndTime startNumber lockedPeriod timeUnit = endingTime
   where
-  -- This must be some fix point in time
+  -- This must be some fix point in time.
     timeTilRefEpoch :: Integer
-    -- timeTilRefEpoch = 1640895900000
-    timeTilRefEpoch = 1660498238433  -- 1030am 8/14
+    timeTilRefEpoch = 1660498238433  -- 10:30 am pst 8/14/22
 
     -- time unit
     lengthOfTime :: Integer
     lengthOfTime = timeUnit
 
-    -- starting Time is just the reference plus how many days in nanoseconds.
     startingTime :: Integer
-    startingTime = timeTilRefEpoch + startDay * lengthOfTime
+    startingTime = timeTilRefEpoch + startNumber*lengthOfTime
 
-    -- ending time is just starting time plus the vesting period.
     endingTime :: Integer
-    endingTime = startingTime + lockedPeriod * lengthOfTime
+    endingTime = startingTime + lockedPeriod*lengthOfTime
 
 -------------------------------------------------------------------------------
 -- | Pick the locking interval, assume negative inf to endingTime.
@@ -121,7 +120,7 @@ isTxOutsideInterval endingTime txValidityRange = not $ Interval.overlaps timeRan
     timeRange = lockInterval endingTime
 
 -------------------------------------------------------------------------
--- | Creates a proper BuiltinByteString.
+-- | Creates a proper BuiltinByteString type.
 -------------------------------------------------------------------------
 createBuiltinByteString :: [Integer] -> PlutusV2.BuiltinByteString
 createBuiltinByteString intList = flattenBuiltinByteString [ consByteString x emptyByteString | x <- intList]
@@ -131,7 +130,7 @@ createBuiltinByteString intList = flattenBuiltinByteString [ consByteString x em
     flattenBuiltinByteString (x:xs) = appendByteString x (flattenBuiltinByteString xs)
 
 -------------------------------------------------------------------------
--- | Create a proper Address Type.
+-- | Create a proper Address type.
 -------------------------------------------------------------------------
 createAddress :: PlutusV2.PubKeyHash -> PlutusV2.PubKeyHash -> PlutusV2.Address
 createAddress pkh sc = 
@@ -152,7 +151,7 @@ isAddrGettingPaid (x:xs) addr val
     checkAddr = PlutusV2.txOutAddress x == addr
 
     checkVal :: Bool
-    checkVal = PlutusV2.txOutValue x == val
+    checkVal = PlutusV2.txOutValue x == val -- must be exact
 
 -------------------------------------------------------------------------------
 -- | Search each TxOut for an addr and value.
@@ -167,10 +166,10 @@ isAddrHolding (x:xs) addr val pid tkn
     checkAddr = PlutusV2.txOutAddress x == addr
 
     checkVal :: Bool
-    checkVal = Value.valueOf (PlutusV2.txOutValue x) pid tkn == val
+    checkVal = Value.valueOf (PlutusV2.txOutValue x) pid tkn == val -- must be exact
 
 -------------------------------------------------------------------------------
--- | Force a number of inputs to have datums
+-- | Count the number of inputs that have datums.
 -------------------------------------------------------------------------------
 isNInputs :: [PlutusV2.TxInInfo] -> Integer -> Bool
 isNInputs utxos number = loopInputs utxos 0
@@ -184,7 +183,7 @@ isNInputs utxos number = loopInputs utxos 0
         (PlutusV2.OutputDatum     _) -> loopInputs xs (counter + 1)
 
 -------------------------------------------------------------------------------
--- | Force a number of outputs to have datums
+-- | Count the number of outputs that have datums.
 -------------------------------------------------------------------------------
 isNOutputs :: [PlutusV2.TxOut] -> Integer -> Bool
 isNOutputs utxos number = loopInputs utxos 0

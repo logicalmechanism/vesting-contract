@@ -62,11 +62,13 @@ lockPid = PlutusV2.CurrencySymbol {PlutusV2.unCurrencySymbol = createBuiltinByte
 
 lockTkn :: PlutusV2.TokenName
 lockTkn = PlutusV2.TokenName {PlutusV2.unTokenName = createBuiltinByteString [116, 68, 82, 73, 80] }
+
 -------------------------------------------------------------------------------
 -- | Create the datum parameters data object.
 -------------------------------------------------------------------------------
 data CustomDatumType = Vesting VestingData
 PlutusTx.makeIsDataIndexed ''CustomDatumType  [ ( 'Vesting, 0 ) ]
+
 -------------------------------------------------------------------------------
 -- | Create the redeemer type.
 -------------------------------------------------------------------------------
@@ -75,6 +77,7 @@ data CustomRedeemerType = Retrieve |
 PlutusTx.makeIsDataIndexed ''CustomRedeemerType [ ( 'Retrieve, 0 )
                                                 , ( 'Close,    1 )
                                                 ]
+
 -------------------------------------------------------------------------------
 -- | mkValidator :: Datum -> Redeemer -> ScriptContext -> Bool
 -------------------------------------------------------------------------------
@@ -98,10 +101,20 @@ mkValidator datum redeemer context =
           retrievingValue = calculateRetrieveValue vd
       in case redeemer of
         
-        -- | Retrieve a reward from the UTxO by continuing the tx back to the contract minus the reward.
+        {- | Retrieve
+      
+          Allows a reward to be retrieved from the contract.
+
+          There can only be a single script input and a single output going to the script. On that output going
+          to the script, the UTxO must contain the correct return value and datum. The act of vesting is always a choice
+          of the vesting user so that user must sign the transaction. The vesting user must recieve their rewards
+          via some kind of UTxO inside the transaction and the reward can not be zero. Finally, a vesting user can only
+          receive a reward after their locking period.
+
+        -}
         Retrieve -> 
-          case getOutboundDatum contTxOutputs (validatingValue - retrievingValue) of   -- check for correct outbound
-            Nothing            -> traceIfFalse "Retrieve:GetOutboundDatum Error" False -- Value isn't con't
+          case getOutboundDatum contTxOutputs (validatingValue - retrievingValue) of   -- get datum from utxo holding that val
+            Nothing            -> traceIfFalse "Retrieve:GetOutboundDatum Error" False -- no txout has the correct val
             Just outboundDatum -> 
               case outboundDatum of
                 
@@ -117,7 +130,18 @@ mkValidator datum redeemer context =
                   ;         traceIfFalse "Retrieve Error"     $ all (==(True :: Bool)) [a,b,c,d,e,f]
                   }
 
-        -- | Close a Vesting UTxO by returning the leftover tokens to the user.
+        {- | Close
+      
+          Allows the vestment UTxO to be closed from the contract.
+
+          There can only be a single script input as the entire value being spent must return to the vesting user.
+          Nothing is returning to the script here so no datum checks need to occur. Closing is part of the act of
+          vesting so it requires the vesting user to sign the transaction. The vesting user must recieve at least the vestment
+          UTxO inside the transaction. A vestment can be closed either when the reward is too large and the there is not enough
+          tokens to give, or when the reward is zero. Finally, a vesting user can only receive a reward after their
+          locking period.
+
+        -}
         Close -> do
           { let validatingTkn = Value.valueOf validatingValue lockPid lockTkn
           ; let retrievingTkn = Value.valueOf retrievingValue lockPid lockTkn
@@ -151,7 +175,9 @@ mkValidator datum redeemer context =
         Nothing    -> traceError "No Input to Validate." -- This error should never be hit.
         Just input -> PlutusV2.txOutValue $ PlutusV2.txInInfoResolved input
 
+    -------------------------------------------------------------------------------
     -- | Calculate what is going to be rewarded to the user.
+    -------------------------------------------------------------------------------
     calculateRetrieveValue :: VestingData -> PlutusV2.Value
     calculateRetrieveValue datum' = Value.singleton lockPid lockTkn (rewardFunction v0 deltaV t)
       where
@@ -167,7 +193,9 @@ mkValidator datum redeemer context =
         t :: Integer
         t = cdtVestingStage datum'
     
+    -------------------------------------------------------------------------------
     -- | Get the datum that holds a value from a list of tx outs.
+    -------------------------------------------------------------------------------
     getOutboundDatum :: [PlutusV2.TxOut] -> PlutusV2.Value -> Maybe CustomDatumType
     getOutboundDatum []     _ = Nothing
     getOutboundDatum (x:xs) val =
@@ -191,9 +219,10 @@ mkValidator datum redeemer context =
                   case PlutusTx.fromBuiltinData d' of
                     Nothing       -> getOutboundDatum xs val
                     Just embedded -> Just $ PlutusTx.unsafeFromBuiltinData @CustomDatumType embedded
-        
-        -- just loop it
+        -- just loop if bad value
         else getOutboundDatum xs val
+-- end of mkValidator
+
 -------------------------------------------------------------------------------
 -- | Now we need to compile the Validator.
 -------------------------------------------------------------------------------
@@ -202,6 +231,7 @@ validator' = PlutusV2.mkValidatorScript
     $$(PlutusTx.compile [|| wrap ||])
  where
     wrap = Utils.mkUntypedValidator mkValidator
+
 -------------------------------------------------------------------------------
 -- | The code below is required for the plutus script compile.
 -------------------------------------------------------------------------------

@@ -1,7 +1,9 @@
 # A Vesting Contract
 
 ```
-The project is being released under Apache License 2.0 (Apache-2.0) so you can do what you like with this repo, as long as you include the required notices. 
+The project is being released under Apache License 2.0 (Apache-2.0)
+so you can do what you like with this repo, as long as you include
+the required notices. 
 ```
 
 Each contract is compiled specifically for a single token vestment solution. This allows a single contract to handle an entire vesting group where each utxo represents a member of the vesting group. This logic allows for a nice seperation of assets and amazing customization on vesting user level. The contract provides the functionality for flat-rate or linear decreasing vesting.

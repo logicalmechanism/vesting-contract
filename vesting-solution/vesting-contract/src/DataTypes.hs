@@ -48,13 +48,13 @@ import qualified Plutus.V2.Ledger.Api as PlutusV2
 -------------------------------------------------------------------------------
 data VestingData = VestingData
   { cdtVestingStage   :: Integer
-  -- ^ The vesting stage determines the deadline and reward.
+  -- ^ The vesting stage determines the end time and reward.
   , cdtVestingUserPkh :: PlutusV2.PubKeyHash
-  -- ^ The public key hash of the receiver.
+  -- ^ The public key hash of the vestor.
   , cdtVestingUserSc  :: PlutusV2.PubKeyHash
-  -- ^ The stake hash of the receiver.
+  -- ^ The stake hash of the vestor.
   , cdtStartingAmount :: Integer
-  -- ^ The starting reward amount at stage 0.
+  -- ^ The starting reward amount at vesting stage 0.
   , cdtDeltaAmount    :: Integer
   -- ^ The decrease to the reward amount per vesting stage.
   , cdtStartPoint     :: Integer
