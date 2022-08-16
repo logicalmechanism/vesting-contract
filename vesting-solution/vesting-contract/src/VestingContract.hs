@@ -46,8 +46,8 @@ import           DataTypes
   Author   : The Ancient Kraken
   Copyright: 2022
   
-  cardano-cli 1.35.2 - linux-x86_64 - ghc-8.10
-  git rev 7612a245a6e2c51d0f1c3e0d65d7fe9363850043
+  cardano-cli 1.35.3 - linux-x86_64 - ghc-8.10
+  git rev 950c4e222086fed5ca53564e642434ce9307b0b9
 
   cabal-install version 3.6.2.0
   compiled using version 3.6.2.0 of the Cabal library
@@ -58,13 +58,13 @@ import           DataTypes
 -- | The token to be distributed.
 -------------------------------------------------------------------------------
 lockPid :: PlutusV2.CurrencySymbol
-lockPid = PlutusV2.CurrencySymbol {PlutusV2.unCurrencySymbol = createBuiltinByteString [105, 138, 110, 160, 202, 153, 243, 21, 3, 64, 114, 175, 49, 234, 172, 110, 193, 31, 232, 85, 141, 63, 72, 233, 119, 90, 171, 157] }
+lockPid = PlutusV2.CurrencySymbol {PlutusV2.unCurrencySymbol = createBuiltinByteString [92, 88, 170, 212, 8, 207, 226, 213, 34, 22, 23, 164, 148, 29, 43, 53, 42, 169, 179, 84, 145, 49, 92, 141, 104, 81, 148, 23] }
 
 lockTkn :: PlutusV2.TokenName
-lockTkn = PlutusV2.TokenName {PlutusV2.unTokenName = createBuiltinByteString [116, 68, 82, 73, 80] }
+lockTkn = PlutusV2.TokenName {PlutusV2.unTokenName = createBuiltinByteString [79, 110, 101, 86, 101, 114, 121, 76, 111, 110, 103, 83, 116, 114, 105, 110, 103, 70, 111, 114, 84, 101, 115, 116, 67, 111, 110, 116, 114, 97, 99, 116] }
 
 -------------------------------------------------------------------------------
--- | Create the datum parameters data object.
+-- | Create the datum type.
 -------------------------------------------------------------------------------
 data CustomDatumType = Vesting VestingData
 PlutusTx.makeIsDataIndexed ''CustomDatumType  [ ( 'Vesting, 0 ) ]
@@ -84,8 +84,9 @@ PlutusTx.makeIsDataIndexed ''CustomRedeemerType [ ( 'Retrieve, 0 )
 {-# INLINABLE mkValidator #-}
 mkValidator :: CustomDatumType -> CustomRedeemerType -> PlutusV2.ScriptContext -> Bool
 mkValidator datum redeemer context =
+  -- loop all available datums for Vesting
   case datum of
-    {- | Vesting VestingData
+    {- | Datum : Vesting VestingData
       
       Allows a UTxO to be retrieved or closed. All vesting information is contained in
       the datum of the UTxO. A reward may be retrieve if and only if the vesting UTxO
@@ -99,9 +100,10 @@ mkValidator datum redeemer context =
           vestingUser     = cdtVestingUserPkh vd
           userAddr        = createAddress vestingUser (cdtVestingUserSc vd)
           retrievingValue = calculateRetrieveValue vd
+      -- loop all available redeemers for Vesting
       in case redeemer of
         
-        {- | Retrieve
+        {- | Redeemer : Retrieve
       
           Allows a reward to be retrieved from the contract.
 
@@ -115,22 +117,23 @@ mkValidator datum redeemer context =
         Retrieve -> 
           case getOutboundDatum contTxOutputs (validatingValue - retrievingValue) of   -- get datum from utxo holding that val
             Nothing            -> traceIfFalse "Retrieve:GetOutboundDatum Error" False -- no txout has the correct val
-            Just outboundDatum -> 
+            Just outboundDatum ->
+              -- loop all available datums for the Retrieve redeemer
               case outboundDatum of
                 
                 -- | Go back to the Vesting state for the next vesting phase.
                 (Vesting vd') -> do
                   { let retrievingTkn = Value.valueOf retrievingValue lockPid lockTkn
-                  ; let a = traceIfFalse "Too Many In / Out"  $ isNInputs txInputs 1 && isNOutputs contTxOutputs 1             -- single input single output
+                  ; let a = traceIfFalse "Too Many In/Out"    $ isNInputs txInputs 1 && isNOutputs contTxOutputs 1             -- single input single output
                   ; let b = traceIfFalse "Wrong Tx Signer"    $ ContextsV2.txSignedBy info vestingUser                         -- wallet must sign it
-                  ; let c = traceIfFalse "Incorrect Datum"    $ vd == vd'                                                      -- the datum changes correctly
+                  ; let c = traceIfFalse "Incorrect Datum"    $ compareVestingData vd vd'                                      -- the datum changes correctly
                   ; let d = traceIfFalse "Vestment Not Paid"  $ isAddrHolding txOutputs userAddr retrievingTkn lockPid lockTkn -- wallet must get the tokens
                   ; let e = traceIfFalse "Value Still Locked" $ isTxOutsideInterval endTime validityInterval                   -- must be outside lock
                   ; let f = traceIfFalse "Reward Is Zero"     $ not $ Value.isZero retrievingValue                             -- reward is non zero
                   ;         traceIfFalse "Retrieve Error"     $ all (==(True :: Bool)) [a,b,c,d,e,f]
                   }
 
-        {- | Close
+        {- | Redeemer : Close
       
           Allows the vestment UTxO to be closed from the contract.
 
@@ -145,7 +148,7 @@ mkValidator datum redeemer context =
         Close -> do
           { let validatingTkn = Value.valueOf validatingValue lockPid lockTkn
           ; let retrievingTkn = Value.valueOf retrievingValue lockPid lockTkn
-          ; let a = traceIfFalse "Too Many In / Out"  $ isNInputs txInputs 1 && isNOutputs contTxOutputs 0             -- single input no outputs
+          ; let a = traceIfFalse "Too Many In/Out"    $ isNInputs txInputs 1 && isNOutputs contTxOutputs 0             -- single input no outputs
           ; let b = traceIfFalse "Wrong Tx Signer"    $ ContextsV2.txSignedBy info vestingUser                         -- wallet must sign it
           ; let c = traceIfFalse "Vestment Not Paid"  $ isAddrGettingPaid txOutputs userAddr validatingValue           -- send back the leftover
           ; let d = traceIfFalse "Funds Are Leftover" $ validatingTkn <= retrievingTkn || Value.isZero retrievingValue -- not enough or leftover
@@ -172,7 +175,7 @@ mkValidator datum redeemer context =
     validatingValue :: PlutusV2.Value
     validatingValue =
       case ContextsV2.findOwnInput context of
-        Nothing    -> traceError "No Input to Validate." -- This error should never be hit.
+        Nothing    -> traceError "" -- This error should never be hit.
         Just input -> PlutusV2.txOutValue $ PlutusV2.txInInfoResolved input
 
     -------------------------------------------------------------------------------
@@ -194,7 +197,7 @@ mkValidator datum redeemer context =
         t = cdtVestingStage datum'
     
     -------------------------------------------------------------------------------
-    -- | Get the datum that holds a value from a list of tx outs.
+    -- | Get the inline datum that holds a value from a list of tx outs.
     -------------------------------------------------------------------------------
     getOutboundDatum :: [PlutusV2.TxOut] -> PlutusV2.Value -> Maybe CustomDatumType
     getOutboundDatum []     _ = Nothing
@@ -202,23 +205,15 @@ mkValidator datum redeemer context =
       if traceIfFalse "Incorrect Outbound Value" $ PlutusV2.txOutValue x == val -- strict value continue
         then
           case PlutusV2.txOutDatum x of
-            -- datumless
-            PlutusV2.NoOutputDatum -> getOutboundDatum xs val -- loop anything without datums
+            PlutusV2.NoOutputDatum       -> getOutboundDatum xs val -- loop anything without datums
+            (PlutusV2.OutputDatumHash _) -> getOutboundDatum xs val -- loop anything with embedded datums
             
-            -- inline datum
+            -- inline datum only
             (PlutusV2.OutputDatum (PlutusV2.Datum d)) -> 
               case PlutusTx.fromBuiltinData d of
                 Nothing     -> getOutboundDatum xs val
                 Just inline -> Just $ PlutusTx.unsafeFromBuiltinData @CustomDatumType inline
-            
-            -- embedded datum
-            (PlutusV2.OutputDatumHash dh) -> 
-              case ContextsV2.findDatum dh info of
-                Nothing                  -> getOutboundDatum xs val
-                Just (PlutusV2.Datum d') -> 
-                  case PlutusTx.fromBuiltinData d' of
-                    Nothing       -> getOutboundDatum xs val
-                    Just embedded -> Just $ PlutusTx.unsafeFromBuiltinData @CustomDatumType embedded
+        
         -- just loop if bad value
         else getOutboundDatum xs val
 -- end of mkValidator

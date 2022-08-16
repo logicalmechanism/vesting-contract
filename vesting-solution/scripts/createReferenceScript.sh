@@ -5,7 +5,7 @@ set -e
 export CARDANO_NODE_SOCKET_PATH=$(cat path_to_socket.sh)
 cli=$(cat path_to_cli.sh)
 
-TESTNET_MAGIC=1097911063
+TESTNET_MAGIC=2
 
 script_path="../vesting-contract/vesting-contract.plutus"
 
@@ -16,11 +16,12 @@ min_utxo=$(${cli} transaction calculate-min-required-utxo \
     --babbage-era \
     --protocol-params-file tmp/protocol.json \
     --tx-out-reference-script-file ${script_path} \
+    --tx-out-datum-hash-value 42 \
     --tx-out="${reference_address} 0" | tr -dc '0-9')
 echo "Locking Min Fee" ${min_utxo}
 
-lock_value=$((${min_utxo} + 1000000))
-script_reference_utxo="${reference_address} + ${lock_value}"
+
+script_reference_utxo="${reference_address} + ${min_utxo}"
 
 echo -e "\nCreating Reference UTxO:\n" ${script_reference_utxo}
 #

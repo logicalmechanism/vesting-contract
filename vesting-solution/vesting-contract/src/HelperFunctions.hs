@@ -76,7 +76,7 @@ rewardFunction :: Integer -> Integer -> Integer -> Integer
 rewardFunction v0 deltaV t = if value >= 0 then value else 0
   where
     value :: Integer
-    value = v0 - t * deltaV
+    value = v0 - t*deltaV
 
 -------------------------------------------------------------------------------
 -- | Calculates the ending time in unix time for some vestment.
@@ -126,7 +126,7 @@ createBuiltinByteString :: [Integer] -> PlutusV2.BuiltinByteString
 createBuiltinByteString intList = flattenBuiltinByteString [ consByteString x emptyByteString | x <- intList]
   where
     flattenBuiltinByteString :: [PlutusV2.BuiltinByteString] -> PlutusV2.BuiltinByteString
-    flattenBuiltinByteString [] = emptyByteString 
+    flattenBuiltinByteString []     = emptyByteString 
     flattenBuiltinByteString (x:xs) = appendByteString x (flattenBuiltinByteString xs)
 
 -------------------------------------------------------------------------
@@ -169,7 +169,7 @@ isAddrHolding (x:xs) addr val pid tkn
     checkVal = Value.valueOf (PlutusV2.txOutValue x) pid tkn == val -- must be exact
 
 -------------------------------------------------------------------------------
--- | Count the number of inputs that have datums.
+-- | Count the number of inputs that have datums of any kind.
 -------------------------------------------------------------------------------
 isNInputs :: [PlutusV2.TxInInfo] -> Integer -> Bool
 isNInputs utxos number = loopInputs utxos 0
@@ -183,7 +183,7 @@ isNInputs utxos number = loopInputs utxos 0
         (PlutusV2.OutputDatum     _) -> loopInputs xs (counter + 1)
 
 -------------------------------------------------------------------------------
--- | Count the number of outputs that have datums.
+-- | Count the number of outputs that have datums of any kind.
 -------------------------------------------------------------------------------
 isNOutputs :: [PlutusV2.TxOut] -> Integer -> Bool
 isNOutputs utxos number = loopInputs utxos 0

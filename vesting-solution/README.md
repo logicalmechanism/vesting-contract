@@ -109,8 +109,8 @@ The contract is designed to be on PlutusV2. There will not be any PlutusV1 back 
 
 ### Versions Used
 ```
-  cardano-cli 1.35.2 - linux-x86_64 - ghc-8.10
-  git rev 7612a245a6e2c51d0f1c3e0d65d7fe9363850043
+  cardano-cli 1.35.3 - linux-x86_64 - ghc-8.10
+  git rev 950c4e222086fed5ca53564e642434ce9307b0b9
 
   cabal-install version 3.6.2.0
   compiled using version 3.6.2.0 of the Cabal library
