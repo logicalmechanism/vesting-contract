@@ -4,11 +4,13 @@ set -e
 # Paths
 export CARDANO_NODE_SOCKET_PATH=$(cat path_to_socket.sh)
 cli=$(cat path_to_cli.sh)
-script_path="../vesting-contract/vesting-contract.plutus"
 
 # Addresses
-script_address=$(${cli} address build --payment-script-file ${script_path} --testnet-magic 1097911063)
+script_path="../vesting-contract/vesting-contract.plutus"
+script_address=$(${cli} address build --payment-script-file ${script_path} --testnet-magic 2)
+#
 issuer_address=$(cat wallets/seller-wallet/payment.addr)
+#
 vestor_address=$(cat wallets/buyer-wallet/payment.addr)
 
 # Token Information
@@ -19,10 +21,12 @@ sc_asset="${amount} ${policy_id}.${token_name}"
 
 # minimum ada to get in
 min_value=$(${cli} transaction calculate-min-required-utxo \
+    --babbage-era \
     --protocol-params-file tmp/protocol.json \
-    --tx-out-datum-embed-file data/current_datum.json \
-    --tx-out="${script_address} ${sc_asset}" | tr -dc '0-9')
-sc_address_out="${script_address} + ${min_value} + ${sc_asset}"
+    --tx-out="${script_address} ${sc_asset}" \
+    --tx-out-inline-datum-file data/current_datum.json | tr -dc '0-9')
+lock_value=5000000
+sc_address_out="${script_address} + ${lock_value} + ${sc_asset}"
 
 echo "Script OUTPUT: "${sc_address_out}
 #
@@ -31,7 +35,7 @@ echo "Script OUTPUT: "${sc_address_out}
 echo -e "\033[0;36m Getting Buyer UTxO Information \033[0m"
 # get utxo
 ${cli} query utxo \
-    --testnet-magic 1097911063 \
+    --testnet-magic 2 \
     --address ${issuer_address} \
     --out-file tmp/issuer_utxo.json
 
@@ -51,7 +55,7 @@ FEE=$(${cli} transaction build \
     --tx-in ${issuer_tx_in} \
     --tx-out="${sc_address_out}" \
     --tx-out-inline-datum-file data/current_datum.json \
-    --testnet-magic 1097911063)
+    --testnet-magic 2)
 
 IFS=':' read -ra VALUE <<< "$FEE"
 IFS=' ' read -ra FEE <<< "${VALUE[1]}"
@@ -65,11 +69,11 @@ ${cli} transaction sign \
     --signing-key-file wallets/seller-wallet/payment.skey \
     --tx-body-file tmp/tx.draft \
     --out-file tmp/tx.signed \
-    --testnet-magic 1097911063
+    --testnet-magic 2
 #
 # exit
 #
 echo -e "\033[0;36m Submitting Tx \033[0m"
 ${cli} transaction submit \
-    --testnet-magic 1097911063 \
+    --testnet-magic 2 \
     --tx-file tmp/tx.signed
