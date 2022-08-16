@@ -7,7 +7,7 @@ cli=$(cat path_to_cli.sh)
 script_path="../vesting-contract/vesting-contract.plutus"
 
 # Addresses
-script_address=$(${cli} address build --payment-script-file ${script_path} --testnet-magic 1097911063)
+script_address=$(${cli} address build --payment-script-file ${script_path} --testnet-magic 2)
 issuer_address=$(cat wallets/seller-wallet/payment.addr)
 vestor_address=$(cat wallets/buyer-wallet/payment.addr)
 vestor_pkh=$(cardano-cli address key-hash --payment-verification-key-file wallets/buyer-wallet/payment.vkey)
@@ -21,13 +21,16 @@ change=$(cat data/price.data | jq -r .change)
 asset="${amount} ${policy_id}.${token_name}"
 sc_asset="${change} ${policy_id}.${token_name}"
 
-sc_min_value=$(${cli} transaction calculate-min-required-utxo \
+min_value=$(${cli} transaction calculate-min-required-utxo \
+    --babbage-era \
     --protocol-params-file tmp/protocol.json \
-    --tx-out-datum-embed-file data/current_datum.json \
-    --tx-out="${script_address} ${sc_asset}" | tr -dc '0-9')
+    --tx-out="${script_address} ${sc_asset}" \
+    --tx-out-inline-datum-file data/current_datum.json | tr -dc '0-9')
+lock_value=5000000
 
-vestor_address_out="${vestor_address} + ${sc_min_value} + ${asset}"
-sc_address_out="${script_address} + ${sc_min_value} + ${sc_asset}"
+
+vestor_address_out="${vestor_address} + ${lock_value} + ${asset}"
+sc_address_out="${script_address} + ${lock_value} + ${sc_asset}"
 echo "Vestor OUTPUT: "${vestor_address_out}
 echo "Script OUTPUT: "${sc_address_out}
 #
@@ -35,7 +38,7 @@ echo "Script OUTPUT: "${sc_address_out}
 #
 echo -e "\033[0;36m Gathering UTxO Information  \033[0m"
 ${cli} query utxo \
-    --testnet-magic 1097911063 \
+    --testnet-magic 2 \
     --address ${issuer_address} \
     --out-file tmp/issuer_utxo.json
 
@@ -53,7 +56,7 @@ issuer_tx_in=${TXIN::-8}
 echo -e "\033[0;36m Gathering Script UTxO Information  \033[0m"
 ${cli} query utxo \
     --address ${script_address} \
-    --testnet-magic 1097911063 \
+    --testnet-magic 2 \
     --out-file tmp/script_utxo.json
 # transaction variables
 TXNS=$(jq length tmp/script_utxo.json)
@@ -68,9 +71,9 @@ script_tx_in=${TXIN::-8}
 script_ref_utxo=$(cardano-cli transaction txid --tx-file tmp/tx-reference-utxo.signed)
 # collat info
 collat_pkh=$(${cli} address key-hash --payment-verification-key-file wallets/collat-wallet/payment.vkey)
-collat_utxo="87a43ee3889f827356a23a7459ef5f9eaf843880da1996d1b68595fb4171f63c" # in collat wallet
+collat_utxo="10e5b05d90199da3f7cb581f00926f5003e22aac8a3d5a33607cd4c57d13aaf3" # in collat wallet
 
-slot=$(${cli} query tip --testnet-magic 1097911063 | jq .slot)
+slot=$(${cli} query tip --testnet-magic 2 | jq .slot)
 current_slot=$(($slot - 1))
 final_slot=$(($slot + 750))
 
@@ -94,7 +97,7 @@ FEE=$(${cli} transaction build \
     --tx-out-inline-datum-file data/next_datum.json \
     --required-signer-hash ${vestor_pkh} \
     --required-signer-hash ${collat_pkh} \
-    --testnet-magic 1097911063)
+    --testnet-magic 2)
 
 IFS=':' read -ra VALUE <<< "$FEE"
 IFS=' ' read -ra FEE <<< "${VALUE[1]}"
@@ -110,13 +113,13 @@ ${cli} transaction sign \
     --signing-key-file wallets/collat-wallet/payment.skey \
     --tx-body-file tmp/tx.draft \
     --out-file tmp/tx.signed \
-    --testnet-magic 1097911063
+    --testnet-magic 2
 #
 # exit
 #
 echo -e "\033[0;36m Submitting \033[0m"
 ${cli} transaction submit \
-    --testnet-magic 1097911063 \
+    --testnet-magic 2 \
     --tx-file tmp/tx.signed
 
 echo -e "\033[0;36m Updating For Next Tx \033[0m"

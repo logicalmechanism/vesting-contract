@@ -26,7 +26,8 @@
 {-# OPTIONS_GHC -fno-specialise               #-}
 {-# OPTIONS_GHC -fexpose-all-unfoldings       #-}
 module DataTypes
-  ( VestingData
+  ( compareVestingData
+  , VestingData
   , cdtVestingStage
   , cdtVestingUserPkh
   , cdtVestingUserSc
@@ -66,14 +67,15 @@ data VestingData = VestingData
   }
 PlutusTx.unstableMakeIsData ''VestingData
 
--- old is a; new is b
-instance Eq VestingData where
-  {-# INLINABLE (==) #-}
-  a == b = ( cdtVestingStage   a + 1 == cdtVestingStage   b ) &&
-           ( cdtVestingUserPkh     a == cdtVestingUserPkh b ) &&
-           ( cdtVestingUserSc      a == cdtVestingUserSc  b ) &&
-           ( cdtStartingAmount     a == cdtStartingAmount b ) &&
-           ( cdtDeltaAmount        a == cdtDeltaAmount    b ) &&
-           ( cdtLockPeriod         a == cdtLockPeriod     b ) &&
-           ( cdtTimeUnit           a == cdtTimeUnit       b ) &&
-           ( (cdtStartPoint a) + (cdtLockPeriod a) == cdtStartPoint b )
+-------------------------------------------------------------------------------
+-- | Compare two vesting data objects. a is input b is output.
+-------------------------------------------------------------------------------
+compareVestingData :: VestingData -> VestingData -> Bool
+compareVestingData a b =  ( cdtVestingStage   a + 1 == cdtVestingStage   b ) &&
+                          ( cdtVestingUserPkh     a == cdtVestingUserPkh b ) &&
+                          ( cdtVestingUserSc      a == cdtVestingUserSc  b ) &&
+                          ( cdtStartingAmount     a == cdtStartingAmount b ) &&
+                          ( cdtDeltaAmount        a == cdtDeltaAmount    b ) &&
+                          ( cdtLockPeriod         a == cdtLockPeriod     b ) &&
+                          ( cdtTimeUnit           a == cdtTimeUnit       b ) &&
+                          ( (cdtStartPoint a) + (cdtLockPeriod a) == cdtStartPoint b )

@@ -17,14 +17,17 @@ asset="${amount} ${policy_id}.${token_name}"
 # asset="${amount} ${policy_id}.${token_hex}"
 
 min_utxo=$(${cli} transaction calculate-min-required-utxo \
+    --babbage-era \
     --protocol-params-file tmp/protocol.json \
+    --tx-out-datum-hash-value 42 \
     --tx-out="${issuer_address} ${asset}" | tr -dc '0-9')
 token_to_be_traded="${issuer_address} + ${min_utxo} + ${asset}"
+# token_to_be_traded="${issuer_address} + 250000000"
 
 echo -e "\nTrading A Token:\n" ${token_to_be_traded}
 echo -e "\033[0;36m Gathering UTxO Information  \033[0m"
 ${cli} query utxo \
-    --testnet-magic 1097911063 \
+    --testnet-magic 2 \
     --address ${vestor_address} \
     --out-file tmp/vestor_utxo.json
 
@@ -45,7 +48,7 @@ FEE=$(${cli} transaction build \
     --change-address ${vestor_address} \
     --tx-in ${HEXTXIN} \
     --tx-out="${token_to_be_traded}" \
-    --testnet-magic 1097911063)
+    --testnet-magic 2)
 
 IFS=':' read -ra VALUE <<< "$FEE"
 IFS=' ' read -ra FEE <<< "${VALUE[1]}"
@@ -59,11 +62,11 @@ ${cli} transaction sign \
     --signing-key-file wallets/buyer-wallet/payment.skey \
     --tx-body-file tmp/tx.draft \
     --out-file tmp/tx.signed \
-    --testnet-magic 1097911063
+    --testnet-magic 2
 #
 # exit
 #
 echo -e "\033[0;36m Submitting \033[0m"
 ${cli} transaction submit \
-    --testnet-magic 1097911063 \
+    --testnet-magic 2 \
     --tx-file tmp/tx.signed
