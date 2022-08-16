@@ -16,9 +16,10 @@ vestor_pkh=$(cardano-cli address key-hash --payment-verification-key-file wallet
 # Token Information
 policy_id=$(cat ../start_info.json | jq -r .pid)
 token_name=$(cat ../start_info.json | jq -r .tkn)
-amount=1800
+amount=$(cat data/price.data | jq -r .reward)
+change=$(cat data/price.data | jq -r .change)
 asset="${amount} ${policy_id}.${token_name}"
-sc_asset="1600 ${policy_id}.${token_name}"
+sc_asset="${change} ${policy_id}.${token_name}"
 
 sc_min_value=$(${cli} transaction calculate-min-required-utxo \
     --protocol-params-file tmp/protocol.json \
@@ -117,3 +118,34 @@ echo -e "\033[0;36m Submitting \033[0m"
 ${cli} transaction submit \
     --testnet-magic 1097911063 \
     --tx-file tmp/tx.signed
+
+echo -e "\033[0;36m Updating For Next Tx \033[0m"
+
+
+t=$(cat data/next_datum.json | jq .fields[0].fields[0].int)
+ft=$((t+1))
+variable=${ft}; jq -r --argjson variable $variable '.fields[0].fields[0].int=$variable' data/next_datum.json > data/next_datum-new.json
+mv data/next_datum-new.json data/next_datum.json
+
+t=$(cat data/next_datum.json | jq .fields[0].fields[0].int)
+t0=$(cat data/current_datum.json | jq .fields[0].fields[5].int)
+dt=$(cat data/current_datum.json | jq .fields[0].fields[6].int)
+
+dv=$(cat data/current_datum.json | jq .fields[0].fields[4].int)
+reward=$(cat data/price.data | jq .reward)
+change=$(cat data/price.data | jq .change)
+
+
+nChange=$(python3 -c "print(int(${change} - (${reward} - ${dv})))")
+nReward=$(python3 -c "print(int((${reward} - ${dv})))")
+
+variable=$((nChange)); jq -r --argjson variable "$variable" '.change=$variable' data/price.data > data/price-new.data
+mv data/price-new.data data/price.data
+variable=$((nReward)); jq -r --argjson variable "$variable" '.reward=$variable' data/price.data > data/price-new.data
+mv data/price-new.data data/price.data
+
+
+nt=$(python3 -c "print(int(${t0} + ${t}*${dt}))")
+
+variable=$((nt)); jq -r --argjson variable "$variable" '.fields[0].fields[5].int=$variable' data/next_datum.json > data/next_datum-new.json
+mv data/next_datum-new.json data/next_datum.json
