@@ -14,8 +14,8 @@ vestor_pkh=$(cardano-cli address key-hash --payment-verification-key-file wallet
 # Token Information
 policy_id=$(cat ../start_info.json | jq -r .pid)
 token_name=$(cat ../start_info.json | jq -r .tkn)
-amount=1600
-asset="3900 ${policy_id}.${token_name}"
+amount=100
+asset="5400 ${policy_id}.${token_name}"
 sc_asset="${amount} ${policy_id}.${token_name}"
 
 # minimum ada to get in
@@ -113,3 +113,14 @@ echo -e "\033[0;36m Submitting \033[0m"
 ${cli} transaction submit \
     --testnet-magic 1097911063 \
     --tx-file tmp/tx.signed
+
+ft=1
+variable=${ft}; jq -r --argjson variable $variable '.fields[0].fields[0].int=$variable' data/next_datum.json > data/next_datum-new.json
+mv data/next_datum-new.json data/next_datum.json
+
+nChange=4500
+nReward=1000
+variable=$((nChange)); jq -r --argjson variable "$variable" '.change=$variable' data/price.data > data/price-new.data
+mv data/price-new.data data/price.data
+variable=$((nReward)); jq -r --argjson variable "$variable" '.reward=$variable' data/price.data > data/price-new.data
+mv data/price-new.data data/price.data

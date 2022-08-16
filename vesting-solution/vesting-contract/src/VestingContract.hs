@@ -121,7 +121,7 @@ mkValidator datum redeemer context =
                 -- | Go back to the Vesting state for the next vesting phase.
                 (Vesting vd') -> do
                   { let retrievingTkn = Value.valueOf retrievingValue lockPid lockTkn
-                  ; let a = traceIfFalse "Too Many In / Out"  $ isNInputs txInputs 1 && isNOutputs contTxOutputs 1             -- single input single output
+                  ; let a = traceIfFalse "Too Many In/Out"    $ isNInputs txInputs 1 && isNOutputs contTxOutputs 1             -- single input single output
                   ; let b = traceIfFalse "Wrong Tx Signer"    $ ContextsV2.txSignedBy info vestingUser                         -- wallet must sign it
                   ; let c = traceIfFalse "Incorrect Datum"    $ vd == vd'                                                      -- the datum changes correctly
                   ; let d = traceIfFalse "Vestment Not Paid"  $ isAddrHolding txOutputs userAddr retrievingTkn lockPid lockTkn -- wallet must get the tokens
@@ -145,7 +145,7 @@ mkValidator datum redeemer context =
         Close -> do
           { let validatingTkn = Value.valueOf validatingValue lockPid lockTkn
           ; let retrievingTkn = Value.valueOf retrievingValue lockPid lockTkn
-          ; let a = traceIfFalse "Too Many In / Out"  $ isNInputs txInputs 1 && isNOutputs contTxOutputs 0             -- single input no outputs
+          ; let a = traceIfFalse "Too Many In/Out"    $ isNInputs txInputs 1 && isNOutputs contTxOutputs 0             -- single input no outputs
           ; let b = traceIfFalse "Wrong Tx Signer"    $ ContextsV2.txSignedBy info vestingUser                         -- wallet must sign it
           ; let c = traceIfFalse "Vestment Not Paid"  $ isAddrGettingPaid txOutputs userAddr validatingValue           -- send back the leftover
           ; let d = traceIfFalse "Funds Are Leftover" $ validatingTkn <= retrievingTkn || Value.isZero retrievingValue -- not enough or leftover
