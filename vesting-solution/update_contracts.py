@@ -81,9 +81,9 @@ def changeDelegPkh(oldPath,newPath,newText):
                 file2.write(line)
 
 def changeMultiPkh(oldPath,newPath,newText1,newText2,newText3):
-    pattern1 = 'multiPkh1 = PlutusV2.PubKeyHash { PlutusV2.getPubKeyHash = createBuiltinByteString'
-    pattern2 = 'multiPkh2 = PlutusV2.PubKeyHash { PlutusV2.getPubKeyHash = createBuiltinByteString'
-    pattern3 = 'multiPkh3 = PlutusV2.PubKeyHash { PlutusV2.getPubKeyHash = createBuiltinByteString'
+    pattern1 = 'masterKey1 = PlutusV2.PubKeyHash { PlutusV2.getPubKeyHash = createBuiltinByteString'
+    pattern2 = 'masterKey2 = PlutusV2.PubKeyHash { PlutusV2.getPubKeyHash = createBuiltinByteString'
+    pattern3 = 'masterKey3 = PlutusV2.PubKeyHash { PlutusV2.getPubKeyHash = createBuiltinByteString'
     with open(oldPath, 'r') as file1:
         with open(newPath, 'w+') as file2:
             for line in file1:
