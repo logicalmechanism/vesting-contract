@@ -81,9 +81,12 @@ masterKey3 = PlutusV2.PubKeyHash { PlutusV2.getPubKeyHash = createBuiltinByteStr
 -- all possible signers
 listOfMasterKeys :: [PlutusV2.PubKeyHash]
 listOfMasterKeys = [masterKey1, masterKey2, masterKey3]
--- signing threshold
-keyThreshold :: Integer
-keyThreshold = 2
+-- signing thresholds
+banThreshold :: Integer
+banThreshold = 3
+
+resetThreshold :: Integer
+resetThreshold = 2
 -------------------------------------------------------------------------------
 -- | Simple Multisig
 -------------------------------------------------------------------------------
@@ -108,10 +111,12 @@ PlutusTx.makeIsDataIndexed ''CustomDatumType  [ ( 'Vesting, 0 ) ]
 -------------------------------------------------------------------------------
 data CustomRedeemerType = Retrieve | 
                           Close    |
-                          MasterKey
-PlutusTx.makeIsDataIndexed ''CustomRedeemerType [ ( 'Retrieve,  0 )
-                                                , ( 'Close,     1 )
-                                                , ( 'MasterKey, 2 )
+                          MasterKeyBan AddressData |
+                          MasterKeyReset IncreaseData
+PlutusTx.makeIsDataIndexed ''CustomRedeemerType [ ( 'Retrieve,       0 )
+                                                , ( 'Close,          1 )
+                                                , ( 'MasterKeyBan,   2 )
+                                                , ( 'MasterKeyReset, 3 )
                                                 ]
 
 -------------------------------------------------------------------------------
@@ -192,19 +197,48 @@ mkValidator datum redeemer context =
           ;         traceIfFalse "Close Error"        $ all (==(True :: Bool)) [a,b,c,d,e]
           }
         
-        {- | Redeemer : MasterKey
+        {- | Redeemer : MasterKeyBan
       
-          Allows the master key to take control of a user's vesting utxo.
+          Allows the master key to ban some utxo into an address.
 
-          The master key has a lot of access to a vesting utxo. It is suppose to be open ended. It can only act
-          on a single vesting utxo inside of a tx. 
+          This allows the master key group to remove a utxo entirely from the contract into some address. This
+          can be used to ban vestors or remove incorrect vesting initial conditions.
 
         -}
-        MasterKey -> do
-          { let a = traceIfFalse "Too Many Inputs"  $ isNInputs txInputs 1                               -- single input open output
-          ; let b = traceIfFalse "Bad Multisig"     $ checkMultisig info listOfMasterKeys keyThreshold   -- master key multsig
-          ;         traceIfFalse "Master Key Error" $ all (==(True :: Bool)) [a,b]
+        (MasterKeyBan ad) -> do
+          { let outboundAddr = createAddress (aPkh ad) (aSc ad)
+          ; let a = traceIfFalse "Too Many Inputs"      $ isNInputs txInputs 1 && isNOutputs contTxOutputs 0       -- single input open output
+          ; let b = traceIfFalse "Bad Multisig"         $ checkMultisig info listOfMasterKeys banThreshold         -- master key multsig
+          ; let c = traceIfFalse "UTxO Not Paid"        $ isAddrGettingPaid txOutputs outboundAddr validatingValue -- send back the utxo
+          ;         traceIfFalse "Master Key Ban Error" $ all (==(True :: Bool)) [a,b,c]
           }
+        
+        {- | Redeemer : MasterKeyReset
+      
+          Allows the master key to reset a vesting utxo while maintaining ownership.
+
+          This allows the master key group to update vesting solutions for their users at the end of their
+          vesting cycle. A user must complete their vesting cycle on a properly set up vesting solution to
+          have their utxo be updated or renewed. This is a great endpoint for refilling one time rewards.
+        
+        -}
+        (MasterKeyReset id') -> 
+          let newValue = Value.singleton lockPid lockTkn (iAmt id')
+          in case getOutboundDatum contTxOutputs (validatingValue + newValue) of   -- get datum from utxo holding that val
+              Nothing            -> traceIfFalse "Reset:GetOutboundDatum Error" False -- no txout has the correct val
+              Just outboundDatum ->
+                -- loop all available datums for the Retrieve redeemer
+                case outboundDatum of
+                  -- | Go back to the Vesting state for the next vesting phase.
+                  (Vesting vd') -> do
+                    { let validatingTkn = Value.valueOf validatingValue lockPid lockTkn
+                    ; let retrievingTkn = Value.valueOf retrievingValue lockPid lockTkn
+                    ; let a = traceIfFalse "Too Many In/Out"        $ isNInputs txInputs 1 && isNOutputs contTxOutputs 1             -- single input single output
+                    ; let b = traceIfFalse "Bad Multisig"           $ checkMultisig info listOfMasterKeys resetThreshold             -- wallet must sign it
+                    ; let c = traceIfFalse "Incorrect Datum"        $ retainOwnership vd vd'                                         -- the datum changes correctly
+                    ; let d = traceIfFalse "Funds Are Leftover"     $ validatingTkn <= retrievingTkn || Value.isZero retrievingValue -- not enough or leftover
+                    ;         traceIfFalse "Master Key Reset Error" $ all (==(True :: Bool)) [a,b,c,d]
+                    }
   -- |
   where
     info :: PlutusV2.TxInfo

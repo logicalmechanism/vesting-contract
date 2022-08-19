@@ -27,6 +27,7 @@
 {-# OPTIONS_GHC -fexpose-all-unfoldings       #-}
 module DataTypes
   ( compareVestingData
+  , retainOwnership
   , VestingData
   , cdtVestingStage
   , cdtVestingUserPkh
@@ -36,6 +37,11 @@ module DataTypes
   , cdtStartPoint
   , cdtLockPeriod
   , cdtTimeUnit
+  , AddressData
+  , aPkh
+  , aSc
+  , IncreaseData
+  , iAmt
   ) where
 import qualified PlutusTx
 import           PlutusTx.Prelude
@@ -44,6 +50,24 @@ import qualified Plutus.V2.Ledger.Api as PlutusV2
   Author   : The Ancient Kraken
   Copyright: 2022
 -}
+-------------------------------------------------------------------------------
+-- | Create the value object data object.
+-------------------------------------------------------------------------------
+data IncreaseData = IncreaseData
+  { iAmt :: Integer
+  -- ^ The amount to increase a finished vesting solution.
+  }
+PlutusTx.unstableMakeIsData ''IncreaseData
+-------------------------------------------------------------------------------
+-- | Create the address data object.
+-------------------------------------------------------------------------------
+data AddressData = AddressData
+  { aPkh :: PlutusV2.PubKeyHash
+  -- ^ The public key hash of the user.
+  , aSc  :: PlutusV2.PubKeyHash
+  -- ^ The stake hash of the user.
+  }
+PlutusTx.unstableMakeIsData ''AddressData
 -------------------------------------------------------------------------------
 -- | Create the vesting data object.
 -------------------------------------------------------------------------------
@@ -79,3 +103,7 @@ compareVestingData a b =  ( cdtVestingStage   a + 1 == cdtVestingStage   b ) &&
                           ( cdtLockPeriod         a == cdtLockPeriod     b ) &&
                           ( cdtTimeUnit           a == cdtTimeUnit       b ) &&
                           ( (cdtStartPoint a) + (cdtLockPeriod a) == cdtStartPoint b )
+
+retainOwnership :: VestingData -> VestingData -> Bool
+retainOwnership a b = ( cdtVestingUserPkh a == cdtVestingUserPkh b ) &&
+                      ( cdtVestingUserSc  a == cdtVestingUserSc  b )
