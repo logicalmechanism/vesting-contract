@@ -28,6 +28,7 @@
 module DataTypes
   ( compareVestingData
   , retainOwnership
+  , updateRewardParams
   , VestingData
   , cdtVestingStage
   , cdtVestingUserPkh
@@ -107,3 +108,10 @@ compareVestingData a b =  ( cdtVestingStage   a + 1 == cdtVestingStage   b ) &&
 retainOwnership :: VestingData -> VestingData -> Bool
 retainOwnership a b = ( cdtVestingUserPkh a == cdtVestingUserPkh b ) &&
                       ( cdtVestingUserSc  a == cdtVestingUserSc  b )
+
+updateRewardParams :: VestingData -> VestingData -> Bool
+updateRewardParams a b =  ( cdtVestingStage   a == cdtVestingStage   b ) &&
+                          ( cdtVestingUserPkh a == cdtVestingUserPkh b ) &&
+                          ( cdtVestingUserSc  a == cdtVestingUserSc  b ) &&
+                          ( cdtLockPeriod     a == cdtLockPeriod     b ) && -- updatable?
+                          ( cdtTimeUnit       a == cdtTimeUnit       b )    -- updatable?

@@ -68,6 +68,7 @@ lockTkn = PlutusV2.TokenName {PlutusV2.unTokenName = createBuiltinByteString [79
 --
 -- This may need to be stored on some reference utxo inside a storage contract.
 -- Or it becomes voting tokens and the delegation contract is used.
+-- just jammin pkhs here isnt the best idea imho
 -------------------------------------------------------------------------------
 masterKey1 :: PlutusV2.PubKeyHash
 masterKey1 = PlutusV2.PubKeyHash { PlutusV2.getPubKeyHash = createBuiltinByteString [219, 123, 255, 196, 26, 67, 196, 217, 195, 19, 66, 227, 253, 69, 116, 9, 174, 180, 3, 2, 170, 82, 5, 141, 243, 116, 145, 59] }
@@ -81,6 +82,7 @@ masterKey3 = PlutusV2.PubKeyHash { PlutusV2.getPubKeyHash = createBuiltinByteStr
 -- all possible signers
 listOfMasterKeys :: [PlutusV2.PubKeyHash]
 listOfMasterKeys = [masterKey1, masterKey2, masterKey3]
+
 -- signing thresholds
 banThreshold :: Integer
 banThreshold = 3
@@ -109,14 +111,16 @@ PlutusTx.makeIsDataIndexed ''CustomDatumType  [ ( 'Vesting, 0 ) ]
 -------------------------------------------------------------------------------
 -- | Create the redeemer type.
 -------------------------------------------------------------------------------
-data CustomRedeemerType = Retrieve | 
-                          Close    |
-                          MasterKeyBan AddressData |
-                          MasterKeyReset IncreaseData
-PlutusTx.makeIsDataIndexed ''CustomRedeemerType [ ( 'Retrieve,       0 )
-                                                , ( 'Close,          1 )
-                                                , ( 'MasterKeyBan,   2 )
-                                                , ( 'MasterKeyReset, 3 )
+data CustomRedeemerType = Retrieve                    | 
+                          Close                       |
+                          MasterKeyBan   AddressData  |
+                          MasterKeyReset IncreaseData |
+                          MasterKeyUpdate
+PlutusTx.makeIsDataIndexed ''CustomRedeemerType [ ( 'Retrieve,        0 )
+                                                , ( 'Close,           1 )
+                                                , ( 'MasterKeyBan,    2 )
+                                                , ( 'MasterKeyReset,  3 )
+                                                , ( 'MasterKeyUpdate, 4 )
                                                 ]
 
 -------------------------------------------------------------------------------
@@ -202,7 +206,9 @@ mkValidator datum redeemer context =
           Allows the master key to ban some utxo into an address.
 
           This allows the master key group to remove a utxo entirely from the contract into some address. This
-          can be used to ban vestors or remove incorrect vesting initial conditions.
+          can be used to ban vestors or remove incorrect vesting initial conditions. An outbound address must 
+          be supplied in the redeemer to determine the final destination of the funds. This allows a single
+          address to be agreed upon before calling the ban endpoint.
 
         -}
         (MasterKeyBan ad) -> do
@@ -215,7 +221,7 @@ mkValidator datum redeemer context =
         
         {- | Redeemer : MasterKeyReset
       
-          Allows the master key to reset a vesting utxo while maintaining ownership.
+          Allows the master key to reset a complete vesting utxo while maintaining ownership.
 
           This allows the master key group to update vesting solutions for their users at the end of their
           vesting cycle. A user must complete their vesting cycle on a properly set up vesting solution to
@@ -224,7 +230,7 @@ mkValidator datum redeemer context =
         -}
         (MasterKeyReset id') -> 
           let newValue = Value.singleton lockPid lockTkn (iAmt id')
-          in case getOutboundDatum contTxOutputs (validatingValue + newValue) of   -- get datum from utxo holding that val
+          in case getOutboundDatum contTxOutputs (validatingValue + newValue) of      -- get datum from utxo holding that val
               Nothing            -> traceIfFalse "Reset:GetOutboundDatum Error" False -- no txout has the correct val
               Just outboundDatum ->
                 -- loop all available datums for the Retrieve redeemer
@@ -238,6 +244,29 @@ mkValidator datum redeemer context =
                     ; let c = traceIfFalse "Incorrect Datum"        $ retainOwnership vd vd'                                         -- the datum changes correctly
                     ; let d = traceIfFalse "Funds Are Leftover"     $ validatingTkn <= retrievingTkn || Value.isZero retrievingValue -- not enough or leftover
                     ;         traceIfFalse "Master Key Reset Error" $ all (==(True :: Bool)) [a,b,c,d]
+                    }
+        
+        {- | Redeemer : MasterKeyUpdate
+      
+          Allows the master key to update the reward parameters for an ongoing vesting solution.
+
+          This allows the master key group to update vesting solutions for their users during their
+          vesting cycle. Changing the reward paramters while keeping the total on the utxo fixed will
+          cause the total time to vest to change. This is great for adjusting rewards in real time.
+        
+        -}
+        MasterKeyUpdate -> 
+          case getOutboundDatum contTxOutputs validatingValue of                    -- get datum from utxo holding that val
+            Nothing            -> traceIfFalse "Reset:GetOutboundDatum Error" False -- no txout has the correct val
+            Just outboundDatum ->
+                -- loop all available datums for the Retrieve redeemer
+                case outboundDatum of
+                  -- | Go back to the Vesting state for the next vesting phase.
+                  (Vesting vd') -> do
+                    { let a = traceIfFalse "Too Many In/Out"        $ isNInputs txInputs 1 && isNOutputs contTxOutputs 1             -- single input single output
+                    ; let b = traceIfFalse "Bad Multisig"           $ checkMultisig info listOfMasterKeys resetThreshold             -- wallet must sign it
+                    ; let c = traceIfFalse "Incorrect Datum"        $ updateRewardParams vd vd'                                      -- the datum changes correctly
+                    ;         traceIfFalse "Master Key Reset Error" $ all (==(True :: Bool)) [a,b,c]
                     }
   -- |
   where
