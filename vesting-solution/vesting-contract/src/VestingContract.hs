@@ -64,6 +64,40 @@ lockTkn :: PlutusV2.TokenName
 lockTkn = PlutusV2.TokenName {PlutusV2.unTokenName = createBuiltinByteString [79, 110, 101, 86, 101, 114, 121, 76, 111, 110, 103, 83, 116, 114, 105, 110, 103, 70, 111, 114, 84, 101, 115, 116, 67, 111, 110, 116, 114, 97, 99, 116] }
 
 -------------------------------------------------------------------------------
+-- | The master keys for the vesting group. Add or remove keys upon need.
+--
+-- This may need to be stored on some reference utxo inside a storage contract.
+-- Or it becomes voting tokens and the delegation contract is used.
+-------------------------------------------------------------------------------
+masterKey1 :: PlutusV2.PubKeyHash
+masterKey1 = PlutusV2.PubKeyHash { PlutusV2.getPubKeyHash = createBuiltinByteString [219, 123, 255, 196, 26, 67, 196, 217, 195, 19, 66, 227, 253, 69, 116, 9, 174, 180, 3, 2, 170, 82, 5, 141, 243, 116, 145, 59] }
+
+masterKey2 :: PlutusV2.PubKeyHash
+masterKey2 = PlutusV2.PubKeyHash { PlutusV2.getPubKeyHash = createBuiltinByteString [162, 16, 139, 123, 23, 4, 249, 254, 18, 201, 6, 9, 110, 161, 99, 77, 248, 224, 137, 201, 204, 253, 101, 26, 186, 228, 164, 57] }
+
+masterKey3 :: PlutusV2.PubKeyHash
+masterKey3 = PlutusV2.PubKeyHash { PlutusV2.getPubKeyHash = createBuiltinByteString [201, 200, 26, 235, 56, 208, 42, 163, 75, 112, 228, 42, 144, 232, 132, 53, 167, 41, 234, 98, 210, 75, 30, 174, 237, 246, 142, 9] }
+
+-- all possible signers
+listOfMasterKeys :: [PlutusV2.PubKeyHash]
+listOfMasterKeys = [masterKey1, masterKey2, masterKey3]
+-- signing threshold
+keyThreshold :: Integer
+keyThreshold = 2
+-------------------------------------------------------------------------------
+-- | Simple Multisig
+-------------------------------------------------------------------------------
+checkMultisig :: PlutusV2.TxInfo -> [PlutusV2.PubKeyHash] -> Integer -> Bool
+checkMultisig txInfo pkhs amt = loopSigs pkhs 0
+  where
+    loopSigs :: [PlutusV2.PubKeyHash] -> Integer  -> Bool
+    loopSigs []     counter = counter >= amt
+    loopSigs (x:xs) counter = 
+      if ContextsV2.txSignedBy txInfo x
+        then loopSigs xs (counter + 1)
+        else loopSigs xs counter
+
+-------------------------------------------------------------------------------
 -- | Create the datum type.
 -------------------------------------------------------------------------------
 data CustomDatumType = Vesting VestingData
@@ -73,9 +107,11 @@ PlutusTx.makeIsDataIndexed ''CustomDatumType  [ ( 'Vesting, 0 ) ]
 -- | Create the redeemer type.
 -------------------------------------------------------------------------------
 data CustomRedeemerType = Retrieve | 
-                          Close
-PlutusTx.makeIsDataIndexed ''CustomRedeemerType [ ( 'Retrieve, 0 )
-                                                , ( 'Close,    1 )
+                          Close    |
+                          MasterKey
+PlutusTx.makeIsDataIndexed ''CustomRedeemerType [ ( 'Retrieve,  0 )
+                                                , ( 'Close,     1 )
+                                                , ( 'MasterKey, 2 )
                                                 ]
 
 -------------------------------------------------------------------------------
@@ -154,6 +190,20 @@ mkValidator datum redeemer context =
           ; let d = traceIfFalse "Funds Are Leftover" $ validatingTkn <= retrievingTkn || Value.isZero retrievingValue -- not enough or leftover
           ; let e = traceIfFalse "UTxO Still Locked"  $ isTxOutsideInterval endTime validityInterval                   -- must be outside lock
           ;         traceIfFalse "Close Error"        $ all (==(True :: Bool)) [a,b,c,d,e]
+          }
+        
+        {- | Redeemer : MasterKey
+      
+          Allows the master key to take control of a user's vesting utxo.
+
+          The master key has a lot of access to a vesting utxo. It is suppose to be open ended. It can only act
+          on a single vesting utxo inside of a tx. 
+
+        -}
+        MasterKey -> do
+          { let a = traceIfFalse "Too Many Inputs"  $ isNInputs txInputs 1                               -- single input open output
+          ; let b = traceIfFalse "Bad Multisig"     $ checkMultisig info listOfMasterKeys keyThreshold   -- master key multsig
+          ;         traceIfFalse "Master Key Error" $ all (==(True :: Bool)) [a,b]
           }
   -- |
   where
