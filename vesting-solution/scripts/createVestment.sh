@@ -27,6 +27,7 @@ min_value=$(${cli} transaction calculate-min-required-utxo \
     --tx-out-inline-datum-file data/current_datum.json | tr -dc '0-9')
 lock_value=5000000
 sc_address_out="${script_address} + ${lock_value} + ${sc_asset}"
+# sc_address_out="${script_address} + ${lock_value}"
 
 echo "Script OUTPUT: "${sc_address_out}
 #
