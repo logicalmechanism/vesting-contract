@@ -133,10 +133,9 @@ mkValidator datum redeemer context =
   case datum of
     {- | Datum : Vesting VestingData
       
-      Allows a UTxO to be retrieved or closed. All vesting information is contained in
+      Allows a UTxO to be vested over time. All vesting information is contained in
       the datum of the UTxO. A reward may be retrieve if and only if the vesting UTxO
-      is returned back to the script under very specific conditions. A UTxO is then closed
-      when the vesting is complete.
+      is returned back to the script under very specific conditions.
 
     -}
     (Vesting vd) ->
@@ -156,7 +155,7 @@ mkValidator datum redeemer context =
           to the script, the UTxO must contain the correct return value and datum. The act of vesting is always a choice
           of the vesting user so that user must sign the transaction. The vesting user must recieve their rewards
           via some kind of UTxO inside the transaction and the reward can not be zero. Finally, a vesting user can only
-          receive a reward after their locking period.
+          receive a reward after their current locking period is complete.
 
         -}
         Retrieve -> 
@@ -187,7 +186,7 @@ mkValidator datum redeemer context =
           vesting so it requires the vesting user to sign the transaction. The vesting user must recieve at least the vestment
           UTxO inside the transaction. A vestment can be closed either when the reward is too large and the there is not enough
           tokens to give, or when the reward is zero. Finally, a vesting user can only receive a reward after their
-          locking period.
+          locking period since it acts as the final vesting phase.
 
         -}
         Close -> do

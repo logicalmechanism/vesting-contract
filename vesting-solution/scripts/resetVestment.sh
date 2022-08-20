@@ -109,3 +109,14 @@ echo -e "\033[0;36m Submitting \033[0m"
 ${cli} transaction submit \
     --testnet-magic 2 \
     --tx-file tmp/tx.signed
+
+ft=1
+variable=${ft}; jq -r --argjson variable $variable '.fields[0].fields[0].int=$variable' data/next_datum.json > data/next_datum-new.json
+mv data/next_datum-new.json data/next_datum.json
+
+nChange=4500
+nReward=1000
+variable=$((nChange)); jq -r --argjson variable "$variable" '.change=$variable' data/price.data > data/price-new.data
+mv data/price-new.data data/price.data
+variable=$((nReward)); jq -r --argjson variable "$variable" '.reward=$variable' data/price.data > data/price-new.data
+mv data/price-new.data data/price.data
