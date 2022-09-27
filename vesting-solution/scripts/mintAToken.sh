@@ -4,6 +4,7 @@ set -e
 # SET UP VARS HERE
 export CARDANO_NODE_SOCKET_PATH=$(cat path_to_socket.sh)
 cli=$(cat path_to_cli.sh)
+TESTNET_MAGIC=$(cat data/testnet.magic)
 
 
 minter_address=$(cat wallets/seller-wallet/payment.addr)
@@ -17,7 +18,7 @@ hex_token_name=$(echo -n ${token_name} | xxd -b -ps -c 80 | tr -d '\n')
 asset="5500 ${policy_id}.${hex_token_name}"
 
 min_utxo=$(${cli} transaction calculate-min-required-utxo \
---babbage-era \
+    --alonzo-era \
     --protocol-params-file tmp/protocol.json \
     --tx-out-datum-hash-value 42 \
     --tx-out="${minter_address} ${asset}" | tr -dc '0-9')
@@ -29,7 +30,7 @@ echo -e "\nMinting A Token:\n" ${token_to_be_minted}
 #
 echo -e "\033[0;36m Gathering UTxO Information  \033[0m"
 ${cli} query utxo \
-    --testnet-magic 2 \
+    --testnet-magic ${TESTNET_MAGIC} \
     --address ${minter_address} \
     --out-file tmp/minter_utxo.json
 
@@ -44,7 +45,7 @@ HEXTXIN=${TXIN::-8}
 
 echo -e "\033[0;36m Building Tx \033[0m"
 FEE=$(${cli} transaction build \
-    --babbage-era \
+    --alonzo-era \
     --protocol-params-file tmp/protocol.json \
     --out-file tmp/tx.draft \
     --change-address ${minter_address} \
@@ -52,8 +53,8 @@ FEE=$(${cli} transaction build \
     --tx-out="${token_to_be_minted}" \
     --mint="${asset}" \
     --minting-script-file policy/policy.script \
-    --witness-override 2 \
-    --testnet-magic 2)
+    --witness-override ${TESTNET_MAGIC} \
+    --testnet-magic ${TESTNET_MAGIC})
 
 IFS=':' read -ra VALUE <<< "${FEE}"
 IFS=' ' read -ra FEE <<< "${VALUE[1]}"
@@ -68,11 +69,11 @@ ${cli} transaction sign \
     --signing-key-file policy/policy.skey  \
     --tx-body-file tmp/tx.draft \
     --out-file tmp/tx.signed \
-    --testnet-magic 2
+    --testnet-magic ${TESTNET_MAGIC}
 #
 # exit
 #
 echo -e "\033[0;36m Submitting \033[0m"
 ${cli} transaction submit \
-    --testnet-magic 2 \
+    --testnet-magic ${TESTNET_MAGIC} \
     --tx-file tmp/tx.signed

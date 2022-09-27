@@ -42,6 +42,7 @@ import qualified Plutus.V1.Ledger.Value         as Value
 import           Plutus.Script.Utils.V2.Scripts as Utils
 import           HelperFunctions
 import           DataTypes
+import           UsefulFuncs
 {- |
   Author   : The Ancient Kraken
   Copyright: 2022
@@ -89,19 +90,6 @@ banThreshold = 3
 
 resetThreshold :: Integer
 resetThreshold = 2
--------------------------------------------------------------------------------
--- | Simple Multisig
--------------------------------------------------------------------------------
-checkMultisig :: PlutusV2.TxInfo -> [PlutusV2.PubKeyHash] -> Integer -> Bool
-checkMultisig txInfo pkhs amt = loopSigs pkhs 0
-  where
-    loopSigs :: [PlutusV2.PubKeyHash] -> Integer  -> Bool
-    loopSigs []     counter = counter >= amt
-    loopSigs (x:xs) counter = 
-      if ContextsV2.txSignedBy txInfo x
-        then loopSigs xs (counter + 1)
-        else loopSigs xs counter
-
 -------------------------------------------------------------------------------
 -- | Create the datum type.
 -------------------------------------------------------------------------------
@@ -167,12 +155,12 @@ mkValidator datum redeemer context =
                 
                 -- | Go back to the Vesting state for the next vesting phase.
                 (Vesting vd') -> do
-                  { let retrievingTkn = Value.valueOf retrievingValue lockPid lockTkn
+                  { let retTkn = Value.valueOf retrievingValue lockPid lockTkn
                   ; let a = traceIfFalse "Too Many In/Out"    $ isNInputs txInputs 1 && isNOutputs contTxOutputs 1             -- single input single output
                   ; let b = traceIfFalse "Wrong Tx Signer"    $ ContextsV2.txSignedBy info vestingUser                         -- wallet must sign it
                   ; let c = traceIfFalse "Incorrect Datum"    $ compareVestingData vd vd'                                      -- the datum changes correctly
-                  ; let d = traceIfFalse "Vestment Not Paid"  $ isAddrHolding txOutputs userAddr retrievingTkn lockPid lockTkn -- wallet must get the tokens
-                  ; let e = traceIfFalse "Value Still Locked" $ isTxOutsideInterval endTime validityInterval                   -- must be outside lock
+                  ; let d = traceIfFalse "Vestment Not Paid"  $ isAddrHoldingToken txOutputs userAddr lockPid lockTkn retTkn   -- wallet must get the tokens
+                  ; let e = traceIfFalse "Value Still Locked" $ isTxOutsideInterval (lockUntilTimeInterval endTime) validityInterval                   -- must be outside lock
                   ; let f = traceIfFalse "Reward Is Zero"     $ not $ Value.isZero retrievingValue                             -- reward is non zero
                   ;         traceIfFalse "Retrieve Error"     $ all (==(True :: Bool)) [a,b,c,d,e,f]
                   }
@@ -194,9 +182,9 @@ mkValidator datum redeemer context =
           ; let retrievingTkn = Value.valueOf retrievingValue lockPid lockTkn
           ; let a = traceIfFalse "Too Many In/Out"    $ isNInputs txInputs 1 && isNOutputs contTxOutputs 0             -- single input no outputs
           ; let b = traceIfFalse "Wrong Tx Signer"    $ ContextsV2.txSignedBy info vestingUser                         -- wallet must sign it
-          ; let c = traceIfFalse "Vestment Not Paid"  $ isAddrGettingPaid txOutputs userAddr validatingValue           -- send back the leftover
+          ; let c = traceIfFalse "Vestment Not Paid"  $ isAddrGettingPaidExactly txOutputs userAddr validatingValue           -- send back the leftover
           ; let d = traceIfFalse "Funds Are Leftover" $ validatingTkn <= retrievingTkn || Value.isZero retrievingValue -- not enough or leftover
-          ; let e = traceIfFalse "UTxO Still Locked"  $ isTxOutsideInterval endTime validityInterval                   -- must be outside lock
+          ; let e = traceIfFalse "UTxO Still Locked"  $ isTxOutsideInterval (lockUntilTimeInterval endTime) validityInterval                   -- must be outside lock
           ;         traceIfFalse "Close Error"        $ all (==(True :: Bool)) [a,b,c,d,e]
           }
         
@@ -213,8 +201,8 @@ mkValidator datum redeemer context =
         (MasterKeyBan ad) -> do
           { let outboundAddr = createAddress (aPkh ad) (aSc ad)
           ; let a = traceIfFalse "Too Many Inputs"      $ isNInputs txInputs 1 && isNOutputs contTxOutputs 0       -- single input open output
-          ; let b = traceIfFalse "Bad Multisig"         $ checkMultisig info listOfMasterKeys banThreshold         -- master key multsig
-          ; let c = traceIfFalse "UTxO Not Paid"        $ isAddrGettingPaid txOutputs outboundAddr validatingValue -- send back the utxo
+          ; let b = traceIfFalse "Bad Multisig"         $ checkValidMultisig info listOfMasterKeys banThreshold         -- master key multsig
+          ; let c = traceIfFalse "UTxO Not Paid"        $ isAddrGettingPaidExactly txOutputs outboundAddr validatingValue -- send back the utxo
           ;         traceIfFalse "Master Key Ban Error" $ all (==(True :: Bool)) [a,b,c]
           }
         
@@ -239,7 +227,7 @@ mkValidator datum redeemer context =
                     { let validatingTkn = Value.valueOf validatingValue lockPid lockTkn
                     ; let retrievingTkn = Value.valueOf retrievingValue lockPid lockTkn
                     ; let a = traceIfFalse "Too Many In/Out"        $ isNInputs txInputs 1 && isNOutputs contTxOutputs 1             -- single input single output
-                    ; let b = traceIfFalse "Bad Multisig"           $ checkMultisig info listOfMasterKeys resetThreshold             -- wallet must sign it
+                    ; let b = traceIfFalse "Bad Multisig"           $ checkValidMultisig info listOfMasterKeys resetThreshold             -- wallet must sign it
                     ; let c = traceIfFalse "Incorrect Datum"        $ retainOwnership vd vd'                                         -- the datum changes correctly
                     ; let d = traceIfFalse "Funds Are Leftover"     $ validatingTkn <= retrievingTkn || Value.isZero retrievingValue -- not enough or leftover
                     ;         traceIfFalse "Master Key Reset Error" $ all (==(True :: Bool)) [a,b,c,d]
@@ -263,7 +251,7 @@ mkValidator datum redeemer context =
                   -- | Go back to the Vesting state for the next vesting phase.
                   (Vesting vd') -> do
                     { let a = traceIfFalse "Too Many In/Out"        $ isNInputs txInputs 1 && isNOutputs contTxOutputs 1             -- single input single output
-                    ; let b = traceIfFalse "Bad Multisig"           $ checkMultisig info listOfMasterKeys resetThreshold             -- wallet must sign it
+                    ; let b = traceIfFalse "Bad Multisig"           $ checkValidMultisig info listOfMasterKeys resetThreshold             -- wallet must sign it
                     ; let c = traceIfFalse "Incorrect Datum"        $ updateRewardParams vd vd'                                      -- the datum changes correctly
                     ;         traceIfFalse "Master Key Reset Error" $ all (==(True :: Bool)) [a,b,c]
                     }

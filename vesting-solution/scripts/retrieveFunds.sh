@@ -6,8 +6,11 @@ export CARDANO_NODE_SOCKET_PATH=$(cat path_to_socket.sh)
 cli=$(cat path_to_cli.sh)
 script_path="../vesting-contract/vesting-contract.plutus"
 
+TESTNET_MAGIC=$(cat data/testnet.magic)
+
+
 # Addresses
-script_address=$(${cli} address build --payment-script-file ${script_path} --testnet-magic 2)
+script_address=$(${cli} address build --payment-script-file ${script_path} --testnet-magic ${TESTNET_MAGIC})
 issuer_address=$(cat wallets/seller-wallet/payment.addr)
 vestor_address=$(cat wallets/buyer-wallet/payment.addr)
 vestor_pkh=$(cardano-cli address key-hash --payment-verification-key-file wallets/buyer-wallet/payment.vkey)
@@ -38,7 +41,7 @@ echo "Script OUTPUT: "${sc_address_out}
 #
 echo -e "\033[0;36m Gathering UTxO Information  \033[0m"
 ${cli} query utxo \
-    --testnet-magic 2 \
+    --testnet-magic ${TESTNET_MAGIC} \
     --address ${issuer_address} \
     --out-file tmp/issuer_utxo.json
 
@@ -56,7 +59,7 @@ issuer_tx_in=${TXIN::-8}
 echo -e "\033[0;36m Gathering Script UTxO Information  \033[0m"
 ${cli} query utxo \
     --address ${script_address} \
-    --testnet-magic 2 \
+    --testnet-magic ${TESTNET_MAGIC} \
     --out-file tmp/script_utxo.json
 # transaction variables
 TXNS=$(jq length tmp/script_utxo.json)
@@ -73,7 +76,7 @@ script_ref_utxo=$(cardano-cli transaction txid --tx-file tmp/tx-reference-utxo.s
 collat_pkh=$(${cli} address key-hash --payment-verification-key-file wallets/collat-wallet/payment.vkey)
 collat_utxo="10e5b05d90199da3f7cb581f00926f5003e22aac8a3d5a33607cd4c57d13aaf3" # in collat wallet
 
-slot=$(${cli} query tip --testnet-magic 2 | jq .slot)
+slot=$(${cli} query tip --testnet-magic ${TESTNET_MAGIC} | jq .slot)
 current_slot=$(($slot - 1))
 final_slot=$(($slot + 750))
 
@@ -97,7 +100,7 @@ FEE=$(${cli} transaction build \
     --tx-out-inline-datum-file data/next_datum.json \
     --required-signer-hash ${vestor_pkh} \
     --required-signer-hash ${collat_pkh} \
-    --testnet-magic 2)
+    --testnet-magic ${TESTNET_MAGIC})
 
 IFS=':' read -ra VALUE <<< "$FEE"
 IFS=' ' read -ra FEE <<< "${VALUE[1]}"
@@ -113,13 +116,13 @@ ${cli} transaction sign \
     --signing-key-file wallets/collat-wallet/payment.skey \
     --tx-body-file tmp/tx.draft \
     --out-file tmp/tx.signed \
-    --testnet-magic 2
+    --testnet-magic ${TESTNET_MAGIC}
 #
 # exit
 #
 echo -e "\033[0;36m Submitting \033[0m"
 ${cli} transaction submit \
-    --testnet-magic 2 \
+    --testnet-magic ${TESTNET_MAGIC} \
     --tx-file tmp/tx.signed
 
 echo -e "\033[0;36m Updating For Next Tx \033[0m"

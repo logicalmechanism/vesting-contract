@@ -5,7 +5,7 @@ set -e
 export CARDANO_NODE_SOCKET_PATH=$(cat path_to_socket.sh)
 cli=$(cat path_to_cli.sh)
 
-TESTNET_MAGIC=2
+TESTNET_MAGIC=$(cat data/testnet.magic)
 
 script_path="../vesting-contract/vesting-contract.plutus"
 

@@ -5,9 +5,10 @@ set -e
 export CARDANO_NODE_SOCKET_PATH=$(cat path_to_socket.sh)
 cli=$(cat path_to_cli.sh)
 script_path="../vesting-contract/vesting-contract.plutus"
+TESTNET_MAGIC=$(cat data/testnet.magic)
 
 # Addresses
-script_address=$(${cli} address build --payment-script-file ${script_path} --testnet-magic 2)
+script_address=$(${cli} address build --payment-script-file ${script_path} --testnet-magic ${TESTNET_MAGIC})
 issuer_address=$(cat wallets/seller-wallet/payment.addr)
 vestor_address=$(cat wallets/buyer-wallet/payment.addr)
 vestor_pkh=$(cardano-cli address key-hash --payment-verification-key-file wallets/buyer-wallet/payment.vkey)
@@ -30,7 +31,7 @@ echo "Script OUTPUT: "${sc_address_out}
 #
 echo -e "\033[0;36m Gathering UTxO Information  \033[0m"
 ${cli} query utxo \
-    --testnet-magic 2 \
+    --testnet-magic ${TESTNET_MAGIC} \
     --address ${issuer_address} \
     --out-file tmp/issuer_utxo.json
 
@@ -48,7 +49,7 @@ issuer_tx_in=${TXIN::-8}
 echo -e "\033[0;36m Gathering Script UTxO Information  \033[0m"
 ${cli} query utxo \
     --address ${script_address} \
-    --testnet-magic 2 \
+    --testnet-magic ${TESTNET_MAGIC} \
     --out-file tmp/script_utxo.json
 # transaction variables
 TXNS=$(jq length tmp/script_utxo.json)
@@ -84,7 +85,7 @@ FEE=$(${cli} transaction build \
     --required-signer-hash ${reference_pkh} \
     --required-signer-hash ${issuer_pkh} \
     --required-signer-hash ${collat_pkh} \
-    --testnet-magic 2)
+    --testnet-magic ${TESTNET_MAGIC})
 
 IFS=':' read -ra VALUE <<< "$FEE"
 IFS=' ' read -ra FEE <<< "${VALUE[1]}"
@@ -101,13 +102,13 @@ ${cli} transaction sign \
     --signing-key-file wallets/seller-wallet/payment.skey \
     --tx-body-file tmp/tx.draft \
     --out-file tmp/tx.signed \
-    --testnet-magic 2
+    --testnet-magic ${TESTNET_MAGIC}
 #
 # exit
 #
 echo -e "\033[0;36m Submitting \033[0m"
 ${cli} transaction submit \
-    --testnet-magic 2 \
+    --testnet-magic ${TESTNET_MAGIC} \
     --tx-file tmp/tx.signed
 
 ft=1
